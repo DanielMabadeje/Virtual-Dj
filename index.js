@@ -1,382 +1,352 @@
-var tempoRange = 20;
-var jogSpeed = 5;
-var timeFactor = 0.1;
+let leftBaseVolume = 1;
+let rightBaseVolume = 1;
 
-var song1 = new Audio('musics/2baba-ft-Peruzzi-Amaka-Disappoint-me-2face-.mp3');
-var song2 = new Audio('musics/Alan Walker - Beautiful You.mp3');
-var song3 = new Audio('musics/All of me by John Legend (Boyce Avenue Acoustic Cover).mp3');
-var song4 = new Audio('musics/003 Bellagio Italian.mp3');
+document.addEventListener('DOMContentLoaded', () => {
+  const songLoader = document.getElementById("songloader");
+  const clearQueueBtn = document.getElementById("clear-queue");
+  const fileUpload = document.getElementById("file-upload");
+  const songContainer = document.getElementById("songloader-container");
 
-var leftSong = null;
-var rightSong = null;
-var channel2load = '';
 
-modVolumeLeft = 0;
-modVolumeRight = 0;
+  const leftLessBtn = document.getElementById("left-less");
+  const rightLessBtn = document.getElementById("right-less");
+  const leftMoreBtn = document.getElementById("left-more");
+  const rightMoreBtn = document.getElementById("right-more");
 
-rateLeft = 1;
-rateRight = 1;
+  const leftPlayBtn = document.getElementById("left-play");
+  const rightPlayBtn = document.getElementById("right-play");
+  const leftTempoRange = document.getElementById("left-tempo-range");
+  const rightTempoRange = document.getElementById("right-tempo-range");
+  const leftJog = document.getElementById("left-jog");
+  const rightJog = document.getElementById("right-jog");
+  const leftSyncBtn = document.getElementById("left-sync");
+  const rightSyncBtn = document.getElementById("right-sync");
+  const leftSyncTempoBtn = document.getElementById("left-sync-tempo");
+  const rightSyncTempoBtn = document.getElementById("right-sync-tempo");
+  const leftVolumeRange = document.getElementById('left-volume-range');
+  const rightVolumeRange = document.getElementById('right-volume-range');
 
-$('#left .play').click(function() {
-  if (leftSong != null) {
-    diff = (((($('#left .volume').offset().top-482)*-1)*0.5)/54);
-    currentVolLeft = (0.5+diff) - (modVolumeLeft*(0.5+diff)/100);
-    leftSong.volume = currentVolLeft.toFixed(2);  
-    leftSong.playbackRate = rateLeft;
-    if ($('#left .jog').hasClass('paused')) {
-      $('#left .jog').removeClass('paused');
-      $('#left .jog').addClass('running');
-      marqueeLeft();
-      leftSong.play();
+  const crossfader = document.getElementById('crossfader');
+
+  const skipInterval = 5;
+  let isDraggingLeft = false;
+  let isDraggingRight = false;
+  let startXLeft = 0;
+  let startXRight = 0;
+  let startTimeLeft = 0;
+  let startTimeRight = 0;
+  const pixelsPerSecond = 10; // adjust sensitivity
+
+  let audioQueue = [];
+  let leftAudio = new Audio();
+  let rightAudio = new Audio();
+
+  if (crossfader) {
+    crossfader.value = 50;
+  }
+
+  function isAudioFile(file) {
+    return file.type.startsWith("audio/");
+  }
+
+  function addSongToLoaderDock(file, duration = null) {
+    const songItem = document.createElement("div");
+    songItem.classList.add("song-item");
+    songItem.dataset.fileUrl = URL.createObjectURL(file);  // Store the file URL for later reference
+
+    songItem.innerHTML = `
+      🎵 ${file.name}
+      ${duration ? `<span class="duration">${formatDuration(duration)}</span>` : ''}
+    `;
+
+    // Make the song item clickable to load into the player
+    songItem.addEventListener('click', () => {
+      loadSongIntoPlayer(songItem.dataset.fileUrl);
+    });
+
+    songLoader.appendChild(songItem);
+  }
+
+  function updateJogSpeed(jogElement, playbackRate) {
+    jogElement.style.animationDuration = `${2 / playbackRate}s`;
+  }
+
+  function formatDuration(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' + secs : secs}`;
+  }
+
+  function queueFile(file) {
+    if (!isAudioFile(file)) return;
+
+    const audio = new Audio(URL.createObjectURL(file));
+
+    audio.onloadedmetadata = () => {
+      addSongToLoaderDock(file, audio.duration);
+    };
+  }
+
+  fileUpload.addEventListener('change', (e) => {
+    [...e.target.files].forEach(queueFile);
+  });
+
+  clearQueueBtn.addEventListener('click', () => {
+    audioQueue = [];
+    songLoader.innerHTML = '';
+  });
+
+  // Add event listeners for the less buttons
+  leftLessBtn.addEventListener('click', () => {
+    if (leftAudio) {
+      leftAudio.currentTime = Math.max(0, leftAudio.currentTime - skipInterval);
+    }
+  });
+
+  rightLessBtn.addEventListener('click', () => {
+    if (rightAudio) {
+      rightAudio.currentTime = Math.max(0, rightAudio.currentTime - skipInterval);
+    }
+  });
+
+  // Add event listeners for the more buttons
+  leftMoreBtn.addEventListener('click', () => {
+    if (leftAudio) {
+      leftAudio.currentTime = Math.min(leftAudio.duration, leftAudio.currentTime + skipInterval);
+    }
+  });
+
+  rightMoreBtn.addEventListener('click', () => {
+    if (rightAudio) {
+      rightAudio.currentTime = Math.min(rightAudio.duration, rightAudio.currentTime + skipInterval);
+    }
+  });
+
+  songContainer.addEventListener("dragover", (e) => e.preventDefault());
+  songContainer.addEventListener("drop", (e) => {
+    e.preventDefault();
+    [...e.dataTransfer.files].forEach(queueFile);
+  });
+
+  function loadSongIntoPlayer(fileUrl) {
+    if (!leftAudio.src) {
+      leftAudio.src = fileUrl;
+      playAudio(leftAudio, leftJog);
+    } else if (!rightAudio.src) {
+      rightAudio.src = fileUrl;
+      playAudio(rightAudio, rightJog);
     } else {
-      $('#left .jog').removeClass('running');
-      $('#left .jog').addClass('paused');
-      marqueeLeftStop();
-      leftSong.pause();
+      console.log('Both players are occupied.');
     }
   }
-  else {
-    requestSong();
-  }
-});
 
-$('#right .play').click(function() {
-  if (rightSong != null) {
-    diff = (((($('#right .volume').offset().top-482)*-1)*0.5)/54);
-    currentVolRight = (0.5+diff) - (modVolumeRight*(0.5+diff)/100);   
-    rightSong.volume = currentVolRight.toFixed(2);
-    rightSong.playbackRate = rateRight;
-    if ($('#right .jog').hasClass('paused')) {
-      $('#right .jog').removeClass('paused');
-      $('#right .jog').addClass('running');
-      marqueeRight();
-      rightSong.play();
+  function playAudio(audioElement, jogElement) {
+    audioElement.play().catch(error => {
+      console.error("Error playing audio:", error);
+    });
+
+    jogElement.classList.add('active');
+
+    audioElement.addEventListener('ended', () => {
+      jogElement.classList.remove('active');
+    });
+  }
+
+  leftPlayBtn.addEventListener('click', () => {
+    togglePlay(leftAudio, leftJog);
+  });
+
+  rightPlayBtn.addEventListener('click', () => {
+    togglePlay(rightAudio, rightJog);
+  });
+
+  leftAudio.addEventListener('ended', () => leftJog.classList.remove('active'));
+  rightAudio.addEventListener('ended', () => rightJog.classList.remove('active'));
+  leftAudio.addEventListener('pause', () => leftJog.classList.remove('active'));
+  rightAudio.addEventListener('pause', () => rightJog.classList.remove('active'));
+
+  function togglePlay(audioElement, jogElement) {
+    if (audioElement.paused) {
+      audioElement.play().catch(error => console.error("Error playing audio:", error));
+      jogElement.classList.add('active');
     } else {
-      $('#right .jog').removeClass('running');
-      $('#right .jog').addClass('paused');
-      marqueeRightStop();
-      rightSong.pause();
+      audioElement.pause();
+      jogElement.classList.remove('active');
     }
   }
-  else {
-    requestSong();
-  }
-});
 
-$('#left .load').click(function() {
-  if ($('#left .jog').hasClass('paused')) {
-  	toggleLoader('left');
-  }
-  else {
-    askToPause();
-  }
-});
+  leftTempoRange.addEventListener('input', (e) => {
+    const shift = parseInt(e.target.value);
+    const playbackRate = 1 + (shift * 0.1);
+    if (leftAudio) leftAudio.playbackRate = playbackRate;
+    updateJogSpeed(leftJog, playbackRate);
+  });
 
-$('#right .load').click(function() {
-  if ($('#right .jog').hasClass('paused')) {
-		toggleLoader('right');
-  }
-  else {
-    askToPause();
-  }
-});
+  rightTempoRange.addEventListener('input', (e) => {
+    const shift = parseInt(e.target.value);
+    const playbackRate = 1 + (shift * 0.1);
+    if (rightAudio) rightAudio.playbackRate = playbackRate;
+    updateJogSpeed(rightJog, playbackRate);
+  });
 
-$("#left .tempo").dblclick(function() {
-  $('#left .tempo').animate({'top': 91}, 500, 'easeOutQuad');
-  $('#left .info-tempo > strong').html('±0.00<span> %</span>');
-  rateLeft = 1;    
-});
+  leftJog.addEventListener('click', (e) => {
+    leftAudio.currentTime += (e.offsetX < leftJog.offsetWidth / 2) ? -5 : 5;
+  });
 
-$("#right .tempo").dblclick(function() {
-  $('#right .tempo').animate({'top': 91}, 500, 'easeOutQuad');
-  $('#right .info-tempo > strong').html('±0.00<span> %</span>');
-  rateRight = 1;
-});
+  rightJog.addEventListener('click', (e) => {
+    rightAudio.currentTime += (e.offsetX < rightJog.offsetWidth / 2) ? -5 : 5;
+  });
 
-$("#left .tempo").draggable({
-  drag: dragLeftTempo,
-  axis: "y",
-  containment: [35, 187, 35, 294]
-});
 
-$("#right .tempo").draggable({
-  drag: dragRightTempo,
-  axis: "y",
-  containment: [818, 187, 818, 294]
-});
-
-$("#left .volume").draggable({
-  drag: dragLeftVolume,
-  axis: "y",
-  containment: [389, 428, 389, 536]
-});
-
-$("#right .volume").draggable({
-  drag: dragRightVolume,
-  axis: "y",
-  containment: [465, 428, 465, 536]
-});
-
-$("#crossfade").draggable({
-  drag: crossFade,
-  axis: "x",
-  containment: 'parent'
-});
-
-function marqueeLeft() {
-  $('#left .song').css('left', '100%');
-  $('#left .song').animate({ 'left': (0 - $('#left .song').width()) }, 5000, 'linear', marqueeLeft);
-}
-
-function marqueeRight() {
-    $('#right .song').css('left', '100%');
-    $('#right .song').animate({ 'left': (0 - $('#right .song').width()) }, 5000, 'linear', marqueeRight);
-}
-
-function marqueeRightStop() {
-  $('#right .song').stop();
-	$('#right .song').animate({'left': '0'});
-}
-
-function marqueeLeftStop() {
-  $('#left .song').stop();
-  $('#left .song').animate({'left': '0'});
-}
-
-function dragLeftTempo() {
-  dragTempo('#left');
-}
-
-function dragRightTempo() {
-  dragTempo('#right');
-}
-
-function dragLeftVolume() {
-  if (leftSong != null) {  
-    dragVolume('#left');
-  }
-}
-
-function dragRightVolume() {
-  if (rightSong != null) {      
-    dragVolume('#right');
-  }
-}
-
-function dragTempo(side) {
-    val = (($(side+' .tempo').offset().top - 240.5) * tempoRange / 53.5).toFixed(2);
-  	$(side+' .jog').css('animation-duration', jogSpeed-((jogSpeed*(val)/100))+'s');
-    if (val > 0) {
-      val = '+' + val;
+  leftJog.addEventListener('mousedown', (e) => {
+    isDraggingLeft = true;
+    startXLeft = e.clientX;
+    startTimeLeft = leftAudio.currentTime;
+    document.body.style.cursor = 'ew-resize';
+  });
+  
+  rightJog.addEventListener('mousedown', (e) => {
+    isDraggingRight = true;
+    startXRight = e.clientX;
+    startTimeRight = rightAudio.currentTime;
+    document.body.style.cursor = 'ew-resize';
+  });
+  
+  window.addEventListener('mousemove', (e) => {
+    if (isDraggingLeft) {
+      const deltaX = e.clientX - startXLeft;
+      const timeChange = deltaX / pixelsPerSecond;
+      const newTime = Math.max(0, Math.min(leftAudio.duration, startTimeLeft + timeChange));
+      leftAudio.currentTime = newTime;
     }
-    $(side+' .info-tempo > strong').html(val+'<span> %</span>');
-  switch(side) {
-    case '#left':
-      rateLeft = (1+(val/100)).toFixed(2);
-      break;
-    case '#right':
-      rateRight = (1+(val/100)).toFixed(2);
-      break;
-  }  
-}
-
-function dragVolume(side) {
-  diff = ((($(side+' .volume').offset().top-482)*-1)*0.5)/54;
-  	switch(side) {
-      case '#left':
-	    	leftSong.volume = ((0.5+diff) - (modVolumeLeft*(0.5+diff)/100)).toFixed(2);
-        break;
-      case '#right':
-        rightSong.volume = ((0.5+diff) - (modVolumeRight*(0.5+diff)/100)).toFixed(2);
-        break;       
+  
+    if (isDraggingRight) {
+      const deltaX = e.clientX - startXRight;
+      const timeChange = deltaX / pixelsPerSecond;
+      const newTime = Math.max(0, Math.min(rightAudio.duration, startTimeRight + timeChange));
+      rightAudio.currentTime = newTime;
     }
-}
-
-function crossFade() {
-  currentVolLeft = (0.5+((($('#left .volume').offset().top-482)*-1)*0.5)/54).toFixed(2);
-  currentVolRight = (0.5+((($('#right .volume').offset().top-482)*-1)*0.5)/54).toFixed(2);  
-  if ($('#crossfade').position().left-57 < 0) {
-    modVolumeLeft = 0;
-    modVolumeRight = (($('#crossfade').position().left-57)*100/-57).toFixed(2);
-  }
-  else if ($('#crossfade').position().left-57 > 0) {
-    modVolumeRight = 0;
-    modVolumeLeft = (($('#crossfade').position().left-57)*100/57).toFixed(2);
-  }
-  else {
-    modVolumeLeft = 0;
-    modVolumeRight = 0;
-  }
-  if (leftSong != null) {
-    leftSong.volume = currentVolLeft - (modVolumeLeft*currentVolLeft/100).toFixed(2);
-  }
-  if (rightSong != null) {
-  	rightSong.volume = currentVolRight - (modVolumeRight*currentVolRight/100).toFixed(2);
-  }
-}
-
-$('#left .less').click(function() {
-  if (leftSong != null) {    
-  	leftSong.currentTime-=timeFactor;
-  }
-  else {
-    requestSong();
-  }
-});
-
-$('#left .more').click(function() {
-  if (leftSong != null) {    
-  	leftSong.currentTime+=timeFactor;
-  }
-  else {
-    requestSong();
-  }
-});
-
-$('#right .less').click(function() {
-  if (rightSong != null) {    
-  	rightSong.currentTime-=timeFactor;
-  }
-  else {
-    requestSong();
-  }
-});
-
-$('#right .more').click(function() {
-  if (rightSong != null) {    
-  	rightSong.currentTime+=timeFactor;
-  }
-  else {
-    requestSong();
-  }
-});
-
-function setSong(id) {
-  $('#'+channel2load+' .info-time').html('00:00');
-  $('#'+channel2load+' input').attr('max', 0);
-  $('#'+channel2load+' input').val(0);
-  switch(id) {
-    case 1:      
-      loader = song1;
-      $('#'+channel2load+' .song').html('A-Trak feat. Andrew Wyatt - Push [Mak & Pasteman Remix]');
-      toggleLoader(channel2load);
-      break;
-    case 2:
-      loader = song2;
-      $('#'+channel2load+' .song').html('South Royston - Thinking Of You [Original Mix]');
-      toggleLoader(channel2load);
-      break;
-    case 3:
-      loader = song3;
-      $('#'+channel2load+' .song').html('My Digital Enemy - On A Ragga Tip [Original Mix]');
-      toggleLoader(channel2load);
-      break;
-    case 4:
-      loader = song4;
-      $('#'+channel2load+' .song').html('Showtek feat MC Ambush	- 90s By Nature [Lucas & Steve Remix]');
-      toggleLoader(channel2load);
-      break;
-  }  
-  if (channel2load == 'left') {
-		leftSong = loader;
-    leftSong.ontimeupdate = null;
-    leftSong.ontimeupdate = function() {updateLeftTime()};
-  }
-  else {
-    rightSong = loader;
-    rightSong.ontimeupdate = null;
-    rightSong.ontimeupdate = function() {updateRightTime()};
-  }
-}
-
-function updateLeftTime() {
-  	leftSong.playbackRate = rateLeft;
-    $('#left .info-time').html(getTime(leftSong.currentTime));
-  	$('#left input').attr('max', leftSong.duration.toFixed(0));
-  	$('#left input').val(leftSong.currentTime.toFixed(0));
-}
-
-function updateRightTime() {
-  	rightSong.playbackRate = rateRight;
-    $('#right .info-time').html(getTime(rightSong.currentTime));
-  	$('#right input').attr('max', rightSong.duration.toFixed(0));
-  	$('#right input').val(rightSong.currentTime.toFixed(0));
-}
-
-function requestSong() {
-  title = '¡No has cargado una canción!';
-  options = {
-    body: 'Carga una canción en este canal pulsando el botón "LOAD"',
-    icon: 'http://www.michelacosta.com/yo.png',
-  }
-  Notification.requestPermission(function(status) {
-    new Notification(title, options);
   });
-}
-
-function askToPause() {
-  title = '¡Tienes que parar la reproducción!';
-  options = {
-    body: 'Para la reproducción antes de cargar otro tema',
-    icon: 'http://www.michelacosta.com/yo.png',
-  }
-  Notification.requestPermission(function(status) {
-    new Notification(title, options);
+  
+  window.addEventListener('mouseup', () => {
+    if (isDraggingLeft || isDraggingRight) {
+      isDraggingLeft = false;
+      isDraggingRight = false;
+      document.body.style.cursor = '';
+    }
   });
-}
 
-function dislike() {
-  title = '¡Desprecio infinito!';
-  options = {
-    body: 'No nos gustan los DJs que usan el SYNC',
-    icon: 'http://www.michelacosta.com/yo.png',
+  leftSyncBtn.addEventListener('click', () => syncTracks(leftAudio, rightAudio));
+  rightSyncBtn.addEventListener('click', () => syncTracks(leftAudio, rightAudio));
+
+  function syncTracks(leftTrack, rightTrack) {
+    if (Math.abs(leftTrack.currentTime - rightTrack.currentTime) > 1) {
+      rightTrack.currentTime = leftTrack.currentTime;
+      if (rightTrack.paused) {
+        rightTrack.play().catch(error => console.error("Error playing right track:", error));
+      }
+    }
   }
-  Notification.requestPermission(function(status) {
-    new Notification(title, options);
+
+  leftSyncBtn.addEventListener('click', async () => {
+    const leftBPM = await getBPM(leftAudio);
+    const rightBPM = await getBPM(rightAudio);
+    syncTracks(leftAudio, rightAudio);
+    syncTempo(leftAudio, rightAudio, leftBPM, rightBPM);
   });
-}
 
-function toggleLoader(deck) {
-  channel2load = deck;
-  if ($('#songloader').position().top == 150) {
-  	$('#songloader').animate({'top': 20}, 600, 'easeOutQuad');   
-    $('#'+deck+' .info').css('background-color','#000033');
+  rightSyncBtn.addEventListener('click', async () => {
+    const leftBPM = await getBPM(leftAudio);
+    const rightBPM = await getBPM(rightAudio);
+    syncTracks(leftAudio, rightAudio);
+    syncTempo(leftAudio, rightAudio, leftBPM, rightBPM);
+  });
+
+  function syncTempo(leftTrack, rightTrack, leftBPM, rightBPM) {
+    const bpmRatio = leftBPM / rightBPM;
+    rightTrack.playbackRate = bpmRatio;
+
+    if (rightTrack.paused) {
+      rightTrack.play().catch(error => console.error("Error playing right track:", error));
+    }
   }
-  else {
-    $('#songloader').animate({'top': 150}, 600, 'easeOutQuad');
-    $('#'+deck+' .info').css('background-color','#000');
-  }  
-}
 
-function getTime(seconds) {
-  var hr  = Math.floor(seconds / 3600);
-  var min = Math.floor((seconds - (hr * 3600))/60);
-  var sec = Math.floor(seconds - (hr * 3600) - (min * 60));
-  if (min < 10){ min = "0" + min; }
-  if (sec < 10){ sec  = "0" + sec; }
-  return min + ':' + sec;
-}
-
-$('#left input').change(function() {
-  if (leftSong != null) {
-  	leftSong.currentTime = $(this).val();
+  function scale(value) {
+    return Math.max(0, Math.min(1, value / 100));
   }
-});
 
-$('#right input').change(function() {
-  if (rightSong != null) {
-  	rightSong.currentTime = $(this).val();
-  }    
-});
+  async function getBPM(audioFile) {
+    if (audioFile.src) {
+      const response = await fetch(audioFile.src);
+      const fileBlob = await response.blob();
+      const arrayBuffer = await fileBlob.arrayBuffer();
+      try {
+        const bpm = await bpmDetect(arrayBuffer);
+        console.log("Detected BPM:", bpm);
+        return bpm;
+      } catch (error) {
+        console.error("Error detecting BPM:", error);
+        return 0;
+      }
+    } else {
+      console.error("Invalid audio file");
+      return 0;
+    }
+  }
 
-$('.sync').click(function() {
-  dislike();
-});
+  function applyCrossfade(value) {
+    leftBaseVolume = parseFloat(leftVolumeRange?.value || 1);
+    rightBaseVolume = parseFloat(rightVolumeRange?.value || 1);
 
-$('#tutorial-button>div').click(function() {
-  $('#tutorial-container').show();
-});
+    const crossfadeRatio = scale(value);
 
-$('#tutorial-container>p').click(function() {
-  $('#tutorial-container').hide();
+    const leftVol = parseFloat((leftBaseVolume * (1 - crossfadeRatio)).toFixed(2));
+    const rightVol = parseFloat((rightBaseVolume * crossfadeRatio).toFixed(2));
+
+    if (leftAudio && !leftAudio.paused) leftAudio.volume = leftVol;
+    if (rightAudio && !rightAudio.paused) rightAudio.volume = rightVol;
+  }
+
+  crossfader.addEventListener('input', (e) => {
+    const value = parseInt(e.target.value);
+    applyCrossfade(value);
+  });
+
+  leftVolumeRange.addEventListener('input', (e) => {
+    leftBaseVolume = parseFloat(e.target.value);
+    applyCrossfade(parseInt(crossfader.value));
+  });
+
+  rightVolumeRange.addEventListener('input', (e) => {
+    rightBaseVolume = parseFloat(e.target.value);
+    applyCrossfade(parseInt(crossfader.value));
+  });
+
+  document.getElementById('load-spotify').addEventListener('click', () => {
+    const spotifyLink = document.getElementById('spotify-link').value.trim();
+    if (spotifyLink && spotifyLink.includes('spotify.com')) {
+      const trackId = getSpotifyTrackId(spotifyLink);
+      if (trackId) {
+        const label = document.createElement("div");
+        label.classList.add("song-item");
+        label.textContent = `🎧 Spotify Track: ${trackId}`;
+        songLoader.appendChild(label);
+
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://open.spotify.com/embed/track/${trackId}`;
+        iframe.width = '300';
+        iframe.height = '80';
+        iframe.frameBorder = '0';
+        iframe.allow = 'encrypted-media';
+        songLoader.appendChild(iframe);
+      }
+    } else {
+      alert("Please enter a valid Spotify link.");
+    }
+  });
+
+  function getSpotifyTrackId(url) {
+    const match = url.match(/track\/([^?\/]+)/);
+    return match ? match[1] : null;
+  }
 });
