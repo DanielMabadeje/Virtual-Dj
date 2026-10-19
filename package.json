@@ -5,8 +5,8 @@
   "private": true,
   "main": "index.html",
   "scripts": {
-    "start": "serve . -l 3000",
-    "dev": "serve . -l 3000"
+    "start": "serve . -l tcp://127.0.0.1:3000",
+    "dev": "serve . -l tcp://127.0.0.1:3000"
   },
   "keywords": ["dj", "web-audio", "turntable", "mixer"],
   "license": "MIT",

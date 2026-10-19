@@ -1,6 +1,6 @@
 const $=(s,e=document)=>e.querySelector(s);
 const COL=["#ffb02e","#3cd6c8","#ff5d73","#9b8cff"];
-let ctx,cueBus,hpMaster,hpOut,hpAudio,master,echoIn,revIn,delay,cf=.5,lib=[];
+let ctx,fadeG,cueBus,hpMaster,hpOut,hpAudio,master,echoIn,revIn,delay,cf=.5,lib=[];
 const decks=[];
 
 /* ---------- build deck UI ---------- */
@@ -67,7 +67,7 @@ const syncFaders=()=>document.querySelectorAll(".knob").forEach(k=>{const i=k.la
 function init(){
   if(ctx){ctx.resume();return}
   ctx=new AudioContext();master=ctx.createGain();master.gain.value=+$("#mvol").value;
-  const comp=ctx.createDynamicsCompressor();master.connect(comp);comp.connect(ctx.destination);
+  const comp=ctx.createDynamicsCompressor();fadeG=ctx.createGain();master.connect(fadeG);fadeG.connect(comp);comp.connect(ctx.destination);
   echoIn=ctx.createGain();delay=ctx.createDelay(2);delay.delayTime.value=.375;
   const fb=ctx.createGain(),lp=ctx.createBiquadFilter();fb.gain.value=.5;lp.frequency.value=3000;
   echoIn.connect(delay);delay.connect(lp);lp.connect(fb);fb.connect(delay);lp.connect(master);
@@ -172,14 +172,6 @@ $("#pick").onclick=()=>$("#file").click();$("#file").onchange=e=>addFiles(e.targ
 addEventListener("dragover",e=>{e.preventDefault();$("#drop").classList.add("hot")});
 addEventListener("dragleave",()=>$("#drop").classList.remove("hot"));
 addEventListener("drop",e=>{e.preventDefault();$("#drop").classList.remove("hot");addFiles(e.dataTransfer.files)});
-
-/* ---------- spotify (preview only for now) ---------- */
-$("#spgo").onclick=()=>{
-  const m=$("#sp").value.match(/(track|album|playlist|episode)\/([A-Za-z0-9]+)/),o=$("#spout");
-  if(!m){o.textContent="That does not look like a Spotify link. Copy one from Share, then Copy link.";return}
-  o.innerHTML="";const f=document.createElement("iframe");f.src=`https://open.spotify.com/embed/${m[1]}/${m[2]}`;
-  f.width="100%";f.height="152";f.style.border="0";f.allow="encrypted-media";o.append(f);
-};
 
 /* ---------- bpm, beat grid, headphones ---------- */
 function setBpm(d,v){d.bpm=v;$d(d,".bpm").value=v?v.toFixed(1):"--.-";if(d.loop&&ctx)loopOff(d)}
@@ -362,3 +354,107 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+
+/* ---------- spotify ---------- */
+const SP_SCOPE="streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state";
+const redirectUri=location.origin+location.pathname;
+const spmsg=t=>{$("#spmsg").textContent=t};
+let spPlayer=null,spDev=null,spVol=.8,spLevel=.8,spPaused=true,spHas=false,fadeT=null;
+$("#spred").textContent=redirectUri;
+$("#spcid").value=localStorage.getItem("sp_cid")||"";
+if(!/^(127\.0\.0\.1|\[::1\])$/.test(location.hostname)&&location.protocol!=="https:")
+  spmsg("Spotify only accepts https or 127.0.0.1 here. Open this page at http://127.0.0.1:3000 (npm start).");
+const b64=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+
+async function spLogin(){
+  const cid=$("#spcid").value.trim();
+  if(!cid){spmsg("Paste your Spotify Client ID first.");return}
+  if(!window.crypto||!crypto.subtle){spmsg("Open this page at http://127.0.0.1:3000 so the browser allows sign in.");return}
+  localStorage.setItem("sp_cid",cid);
+  const v=b64(crypto.getRandomValues(new Uint8Array(48)));localStorage.setItem("sp_ver",v);
+  const ch=b64(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)));
+  location.href="https://accounts.spotify.com/authorize?"+new URLSearchParams({response_type:"code",client_id:cid,scope:SP_SCOPE,redirect_uri:redirectUri,code_challenge_method:"S256",code_challenge:ch});
+}
+async function spToken(body){
+  const r=await fetch("https://accounts.spotify.com/api/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:localStorage.getItem("sp_cid"),...body})});
+  const j=await r.json();if(!r.ok)throw new Error(j.error_description||j.error||"token error");
+  const old=JSON.parse(localStorage.getItem("sp_tok")||"{}");
+  const t={access:j.access_token,refresh:j.refresh_token||old.refresh,exp:Date.now()+j.expires_in*1000};
+  localStorage.setItem("sp_tok",JSON.stringify(t));return t;
+}
+async function spAccess(){
+  let t=JSON.parse(localStorage.getItem("sp_tok")||"null");if(!t)throw new Error("Not connected.");
+  if(Date.now()>t.exp-60000)t=await spToken({grant_type:"refresh_token",refresh_token:t.refresh});
+  return t.access;
+}
+function spStart(){
+  $("#spsetup").hidden=true;$("#spon").hidden=false;spmsg("Starting the Spotify player…");
+  window.onSpotifyWebPlaybackSDKReady=()=>{
+    spPlayer=new Spotify.Player({name:"Virtual DJ",volume:spVol,getOAuthToken:cb=>spAccess().then(cb).catch(()=>spmsg("Session expired. Disconnect and connect again."))});
+    spPlayer.addListener("ready",({device_id})=>{spDev=device_id;spmsg("Spotify player ready.")});
+    spPlayer.addListener("not_ready",()=>{spDev=null;spmsg("Spotify player went offline.")});
+    spPlayer.addListener("player_state_changed",s=>{
+      if(!s||!s.track_window.current_track)return;
+      const t=s.track_window.current_track;spHas=true;spPaused=s.paused;
+      $("#spnow").textContent=t.name+" - "+t.artists.map(a=>a.name).join(", ");
+      $("#sptog").textContent=s.paused?"Play":"Pause";
+    });
+    ["initialization_error","authentication_error","account_error","playback_error"].forEach(ev=>
+      spPlayer.addListener(ev,({message})=>spmsg(ev==="account_error"?"Spotify Premium is required to play here.":message)));
+    spPlayer.connect();
+  };
+  const s=document.createElement("script");s.src="https://sdk.scdn.co/spotify-player.js";
+  s.onerror=()=>spmsg("Could not load the Spotify player script.");document.head.append(s);
+}
+$("#spconn").onclick=spLogin;
+$("#spoff").onclick=()=>{if(spPlayer)spPlayer.disconnect();["sp_tok","sp_ver"].forEach(k=>localStorage.removeItem(k));location.reload()};
+$("#spgo").onclick=async()=>{
+  const m=$("#sp").value.match(/(track|album|playlist|episode)[\/:]([A-Za-z0-9]+)/);
+  if(!m){spmsg("That does not look like a Spotify link.");return}
+  if(!spPlayer||!spDev){spmsg("The player is still starting. Try again in a moment.");return}
+  spPlayer.activateElement();
+  const uri=`spotify:${m[1]}:${m[2]}`,body=(m[1]==="track"||m[1]==="episode")?{uris:[uri]}:{context_uri:uri};
+  try{
+    const r=await fetch("https://api.spotify.com/v1/me/player/play?device_id="+spDev,{method:"PUT",headers:{Authorization:"Bearer "+await spAccess(),"Content-Type":"application/json"},body:JSON.stringify(body)});
+    spmsg(r.ok?"":"Spotify refused that ("+r.status+"). Check that Premium is active and the app has Web API enabled.");
+  }catch(e){spmsg(e.message)}
+};
+$("#sptog").onclick=()=>{if(spPlayer){spPlayer.activateElement();spPlayer.togglePlay()}};
+$("#spprev").onclick=()=>spPlayer&&spPlayer.previousTrack();
+$("#spnext").onclick=()=>spPlayer&&spPlayer.nextTrack();
+$("#spvol").oninput=e=>{spVol=spLevel=+e.target.value;if(spPlayer)spPlayer.setVolume(spVol)};
+
+/* Spotify cannot pass through the mixer (its audio is protected), so the handoff fades the decks out
+   and Spotify in with two separate volume controls. */
+function spFade(toSp){
+  init();
+  if(!spPlayer||!spDev){spmsg("Connect Spotify and wait for the player first.");return}
+  if(toSp&&!spHas){spmsg("Play a Spotify track first, then fade to it.");return}
+  clearInterval(fadeT);spPlayer.activateElement();
+  const sec=Math.max(1,Math.min(30,+$("#spsec").value||8)),t0=performance.now();
+  const k0=fadeG.gain.value,kT=toSp?0:1;
+  if(toSp&&spPaused){spLevel=0;spPlayer.setVolume(0);spPlayer.resume()}
+  const s0=spLevel,sT=toSp?spVol:0;
+  fadeT=setInterval(()=>{
+    const p=Math.min(1,(performance.now()-t0)/(sec*1000));
+    fadeG.gain.linearRampToValueAtTime(k0+(kT-k0)*p,ctx.currentTime+.1);
+    spLevel=s0+(sT-s0)*p;spPlayer.setVolume(spLevel);
+    if(p>=1){
+      clearInterval(fadeT);
+      if(toSp){decks.forEach(d=>{if(d.playing)stop(d)});spmsg("Spotify is playing. The decks are muted until you fade back.")}
+      else{spPlayer.pause().then(()=>{spLevel=spVol;spPlayer.setVolume(spVol)});spmsg("Back on the decks.")}
+    }
+  },80);
+}
+$("#spto").onclick=()=>spFade(true);$("#spback").onclick=()=>spFade(false);
+(async()=>{
+  const q=new URLSearchParams(location.search);
+  if(q.get("error")){spmsg("Spotify said: "+q.get("error"));history.replaceState({},"",location.pathname)}
+  else if(q.get("code")){
+    try{await spToken({grant_type:"authorization_code",code:q.get("code"),redirect_uri:redirectUri,code_verifier:localStorage.getItem("sp_ver")})}
+    catch(e){spmsg("Sign in failed: "+e.message)}
+    history.replaceState({},"",location.pathname);
+  }
+  if(localStorage.getItem("sp_tok"))spStart();
+})();

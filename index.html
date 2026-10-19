@@ -18,10 +18,21 @@
     <div class="row" style="margin-bottom:8px"><input type="file" id="file" accept="audio/*" multiple hidden><button id="pick">Add tracks</button><span style="color:var(--dim);align-self:center">or drop audio files anywhere</span></div>
     <div id="lib"><div class="drop">No tracks yet. Add files, then load them onto a deck.</div></div>
   </div>
-  <div class="box">
+  <div class="box" id="spbox">
     <h2>Spotify</h2>
-    <div class="row"><input type="text" id="sp" placeholder="Paste a Spotify track, album or playlist link"><button id="spgo">Preview</button></div>
-    <div id="spout" style="margin-top:8px;color:var(--dim)">Spotify does not hand out raw audio, so these tracks cannot pass through the decks yet. Connecting an account is the next step.</div>
+    <div id="spsetup">
+      <div class="row"><input type="text" id="spcid" placeholder="Spotify Client ID" aria-label="Spotify Client ID"><button id="spconn">Connect</button></div>
+      <p class="note">Needs Spotify Premium. In the Spotify developer dashboard, create an app, tick Web API and Web Playback SDK, and add this redirect URI exactly:</p>
+      <code id="spred"></code>
+    </div>
+    <div id="spon" hidden>
+      <div class="row"><input type="text" id="sp" placeholder="Paste a Spotify track, album or playlist link"><button id="spgo">Play</button></div>
+      <div class="spnow" id="spnow">Nothing playing</div>
+      <div class="row"><button id="spprev">Prev</button><button id="sptog">Play</button><button id="spnext">Next</button><button id="spoff" style="margin-left:auto">Disconnect</button></div>
+      <input type="range" class="fd h" id="spvol" min="0" max="1" step=".01" value=".8" aria-label="Spotify volume">
+      <div class="row" style="align-items:center"><button id="spto">Fade to Spotify</button><button id="spback">Fade to decks</button><label class="note">over <input type="number" id="spsec" min="1" max="30" value="8" style="width:54px"> s</label></div>
+    </div>
+    <div id="spmsg" class="note"></div>
   </div>
 </div>
 
