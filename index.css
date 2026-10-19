@@ -21,7 +21,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 body.dec2 .song .x{display:none}
 .row{display:flex;gap:8px}
 input[type=text]{flex:1;background:#101114;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 10px;min-width:0}
-.stage{display:grid;grid-template-columns:1fr 200px 1fr;gap:12px;padding:0 16px 24px}
+.stage{display:grid;grid-template-columns:1fr 220px 1fr;gap:12px;padding:0 16px 24px}
 body.dec2 .x{display:none!important}
 #d1{grid-column:1;grid-row:1}#d2{grid-column:3;grid-row:1}#d3{grid-column:1;grid-row:2}#d4{grid-column:3;grid-row:2}
 .mixer{grid-column:2;grid-row:1/span 2;display:flex;flex-direction:column;align-items:center;gap:14px}
@@ -84,3 +84,16 @@ input[type=range]{accent-color:var(--c,#ffb02e);margin:0}
 .loops button{min-width:40px;padding:4px 8px}
 .hc{min-width:78px;border-style:dashed;color:var(--dim)}
 .hc.set{border-style:solid;border-color:var(--c);color:var(--txt);background:color-mix(in srgb,var(--c) 28%,var(--panel2))}
+
+/* bpm entry, beat dots, headphones */
+input.lcd{border:0;width:92px;font:600 15px ui-monospace,Menlo,monospace}
+input.lcd:focus{outline:2px solid var(--c);outline-offset:1px}
+.gridrow{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.gridrow button{padding:2px 9px;min-width:0}
+.beats{display:inline-flex;gap:5px;margin-right:auto}
+.beats i{width:11px;height:11px;border-radius:50%;background:#2c2f37}
+.beats i.on{background:var(--c);box-shadow:0 0 6px var(--c)}
+.beats i.on:first-child{background:#fff;box-shadow:0 0 6px #fff}
+.mixer{--c:#d7d3c8}
+.hp{width:100%;display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--dim)}
+.hp select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px;width:100%}

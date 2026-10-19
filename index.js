@@ -1,6 +1,6 @@
 const $=(s,e=document)=>e.querySelector(s);
 const COL=["#ffb02e","#3cd6c8","#ff5d73","#9b8cff"];
-let ctx,master,echoIn,revIn,delay,cf=.5,lib=[];
+let ctx,cueBus,hpMaster,hpOut,hpAudio,master,echoIn,revIn,delay,cf=.5,lib=[];
 const decks=[];
 
 /* ---------- build deck UI ---------- */
@@ -8,8 +8,9 @@ COL.forEach((c,i)=>{
   const n=i+1,s=document.createElement("section");
   s.className="box deck"+(i>1?" x":"");s.id="d"+n;s.style.setProperty("--c",c);
   s.innerHTML=`
-  <header><span class="tag">${n}</span><span class="title">Empty. Load a track from the library.</span><span class="lcd bpm">--.-</span><span class="lcd time">0:00</span></header>
+  <header><span class="tag">${n}</span><span class="title">Empty. Load a track from the library.</span><input class="lcd bpm" type="text" inputmode="decimal" value="--.-" title="BPM: type a number, or use the up and down arrow keys" aria-label="BPM deck ${n}"><span class="lcd time">0:00</span></header>
   <canvas class="wave" width="900" height="70"></canvas>
+  <div class="gridrow"><span class="beats" title="Current beat"><i></i><i></i><i></i><i></i></span><button class="bh" title="Halve the BPM">&frac12;</button><button class="bd" title="Double the BPM">&times;2</button><button class="tap" title="Tap along to the beat to set BPM and beat 1">Tap</button><button class="grid" title="Mark the playhead as beat 1">Set 1</button></div>
   <div class="mid">
     <div class="col"><span class="pv">0.0%</span><input type="range" class="v fd pitch" min="-16" max="16" step=".1" value="0" aria-label="Tempo ${n}"><span>tempo</span></div>
     <svg class="platter" viewBox="-100 -100 200 200" aria-label="Platter ${n}">
@@ -26,7 +27,7 @@ COL.forEach((c,i)=>{
     </svg>
     <div class="col"><div style="display:flex;gap:6px"><input type="range" class="v fd vol" min="0" max="1" step=".01" value=".8" aria-label="Volume ${n}"><div class="vu"><i></i></div></div><span>level</span></div>
   </div>
-  <div class="btns"><button class="play">Play</button><button class="cue">Cue</button><button class="sync">Sync</button><button class="brake">Brake</button><button class="echo">Echo</button><button class="rev">Reverb</button></div>
+  <div class="btns"><button class="play">Play</button><button class="cue">Cue</button><button class="sync">Sync</button><button class="brake">Brake</button><button class="echo">Echo</button><button class="rev">Reverb</button><button class="pfl" title="Hear this deck in your headphones">Phones</button></div>
   <div class="pads">${"ABCD".split("").map((l,k)=>`<button class="hc" title="Click to set or jump. Right-click or shift-click to clear.">${l}</button>`).join("")}</div>
   <div class="loops"><span>Loop (beats)</span><button class="lh" title="Halve">&frac12;</button>${[1,2,4,8].map(b=>`<button class="lp" data-b="${b}">${b}</button>`).join("")}<button class="ld" title="Double">&times;2</button></div>
   <div class="knobs">
@@ -73,6 +74,10 @@ function init(){
   revIn=ctx.createGain();const cv=ctx.createConvolver(),N=ctx.sampleRate*2.4,ir=ctx.createBuffer(2,N,ctx.sampleRate);
   for(let c=0;c<2;c++){const a=ir.getChannelData(c);for(let i=0;i<N;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/N,3)}
   cv.buffer=ir;const rg=ctx.createGain();rg.gain.value=.8;revIn.connect(cv);cv.connect(rg);rg.connect(master);
+  cueBus=ctx.createGain();hpMaster=ctx.createGain();hpOut=ctx.createGain();
+  const cueDest=ctx.createMediaStreamDestination();
+  cueBus.connect(hpOut);master.connect(hpMaster);hpMaster.connect(hpOut);hpOut.connect(cueDest);
+  hpAudio=new Audio();hpAudio.srcObject=cueDest.stream;hpMixSet();
   decks.forEach(d=>{
     const f=(t,fr)=>{const b=ctx.createBiquadFilter();b.type=t;b.frequency.value=fr;return b};
     d.low=f("lowshelf",250);d.mid=f("peaking",1200);d.high=f("highshelf",4000);d.flt=f("allpass",1000);d.flt.Q.value=2;
@@ -80,6 +85,7 @@ function init(){
     d.sE=ctx.createGain();d.sR=ctx.createGain();d.sE.gain.value=d.sR.gain.value=0;
     d.low.connect(d.mid);d.mid.connect(d.high);d.high.connect(d.flt);d.flt.connect(d.vol);d.vol.connect(d.x);d.x.connect(d.an);d.x.connect(master);
     d.vol.connect(d.sE);d.sE.connect(echoIn);d.vol.connect(d.sR);d.sR.connect(revIn);
+    d.pfl=ctx.createGain();d.pfl.gain.value=$d(d,".pfl").classList.contains("on")?1:0;d.flt.connect(d.pfl);d.pfl.connect(cueBus);
     applyAll(d);
   });
 }
@@ -133,7 +139,9 @@ function bpmOf(b){
   const g=(p)=>{const k=Math.floor(p),fr=p-k;return k+1<n?f[k]*(1-fr)+f[k+1]*fr:0};
   let best=0,bb=0;
   for(let bpm=70;bpm<=180;bpm+=.5){const lag=(sr/H)*60/bpm;let s=0;for(let i=0;i+lag*2<n;i++)s+=f[i]*(g(i+lag)+.5*g(i+lag*2));if(s>best){best=s;bb=bpm}}
-  return bb;
+  const lag=(sr/H)*60/bb,m=Math.min(n,Math.floor(20*sr/H));let bo=0,bs=0;
+  for(let o=0;o<lag;o+=.25){let s=0;for(let k=0;o+k*lag<m;k++)s+=g(o+k*lag);if(s>bs){bs=s;bo=o}}
+  return{bpm:bb,t0:bo*H/sr};
 }
 async function load(d,file){
   init();stop(d);const t=$d(d,".title");t.textContent="Loading "+file.name+"…";
@@ -141,11 +149,11 @@ async function load(d,file){
     const buf=await ctx.decodeAudioData(await file.arrayBuffer());
     const rev=ctx.createBuffer(buf.numberOfChannels,buf.length,buf.sampleRate);
     for(let c=0;c<buf.numberOfChannels;c++)rev.getChannelData(c).set(buf.getChannelData(c).slice().reverse());
-    d.buf=buf;d.rev=rev;d.off=0;d.cue=0;d.bpm=bpmOf(buf);d.hc=[null,null,null,null];d.loop=null;padsUI(d);loopUI(d);
+    d.buf=buf;d.rev=rev;d.off=0;d.cue=0;{const a=bpmOf(buf);d.bpm=a.bpm;d.beat0=a.t0}d.hc=[null,null,null,null];d.loop=null;padsUI(d);loopUI(d);
     const W=900,H=70,o=document.createElement("canvas");o.width=W;o.height=H;const g=o.getContext("2d"),x=buf.getChannelData(0),step=Math.floor(x.length/W);
     g.fillStyle=d.c;
     for(let i=0;i<W;i++){let m=0;for(let j=0;j<step;j+=16){const v=Math.abs(x[i*step+j]);if(v>m)m=v}const h=Math.max(1,m*H*.95);g.fillRect(i,(H-h)/2,1,h)}
-    d.wf=o;t.textContent=file.name.replace(/\.[^.]+$/,"");$d(d,".bpm").textContent=d.bpm.toFixed(1);
+    d.wf=o;t.textContent=file.name.replace(/\.[^.]+$/,"");setBpm(d,d.bpm);
     $d(d,".pitch").value=0;d.rate=1;$d(d,".pv").textContent="0.0%";
   }catch(err){t.textContent="Could not read that file. Try an mp3, wav or m4a."}
 }
@@ -172,6 +180,36 @@ $("#spgo").onclick=()=>{
   o.innerHTML="";const f=document.createElement("iframe");f.src=`https://open.spotify.com/embed/${m[1]}/${m[2]}`;
   f.width="100%";f.height="152";f.style.border="0";f.allow="encrypted-media";o.append(f);
 };
+
+/* ---------- bpm, beat grid, headphones ---------- */
+function setBpm(d,v){d.bpm=v;$d(d,".bpm").value=v?v.toFixed(1):"--.-";if(d.loop&&ctx)loopOff(d)}
+const phase=(d,p)=>(((p-(d.beat0||0))*d.bpm/60)%1+1)%1;
+function hpMixSet(){
+  if(!ctx)return;const m=+$("#hpmix").value;
+  cueBus.gain.value=Math.cos(m*Math.PI/2);hpMaster.gain.value=Math.sin(m*Math.PI/2);hpOut.gain.value=+$("#hpvol").value;
+}
+let phonesReady=false;
+async function setPhones(id){
+  init();const st=$("#hpst");phonesReady=false;
+  if(!id){hpAudio.pause();st.textContent="No headphone output chosen.";return}
+  if(!hpAudio.setSinkId){st.textContent="This browser cannot pick an output. Try Chrome or Edge.";return}
+  try{await hpAudio.setSinkId(id);await hpAudio.play();phonesReady=true;st.textContent="Headphones ready."}
+  catch(e){st.textContent="Could not open that output."}
+}
+const hpsel=$("#hpsel");
+function addOut(id,label){
+  if(![...hpsel.options].some(o=>o.value===id))hpsel.add(new Option(label||"Output "+hpsel.options.length,id));
+  hpsel.value=id;
+}
+$("#hppick").onclick=async()=>{
+  init();
+  try{
+    if(navigator.mediaDevices.selectAudioOutput){const dv=await navigator.mediaDevices.selectAudioOutput();addOut(dv.deviceId,dv.label);setPhones(dv.deviceId)}
+    else{(await navigator.mediaDevices.enumerateDevices()).filter(x=>x.kind==="audiooutput").forEach(x=>addOut(x.deviceId,x.label));hpsel.value="";$("#hpst").textContent="Choose an output from the list."}
+  }catch(e){$("#hpst").textContent="No output was chosen."}
+};
+hpsel.onchange=()=>setPhones(hpsel.value);
+$("#hpmix").oninput=()=>{init();hpMixSet()};$("#hpvol").oninput=()=>{init();hpMixSet()};
 
 /* ---------- hot cues and loops ---------- */
 const LET="ABCD";
@@ -209,10 +247,15 @@ decks.forEach(d=>{
     d[send].gain.value=on?.6:0}};
   fx(".echo","sE");fx(".rev","sR");
   q(".sync").onclick=()=>{
-    init();const o=decks.filter(x=>x!==d&&x.buf&&x.bpm&&!x.el.classList.contains("x")||x!==d&&x.buf&&x.bpm&&x.n<=2).sort((a,b)=>b.playing-a.playing)[0];
+    init();
+    const o=decks.filter(x=>x!==d&&x.buf&&x.bpm&&!(document.body.classList.contains("dec2")&&x.n>2)).sort((a,b)=>b.playing-a.playing)[0];
     if(!d.buf||!d.bpm||!o)return;
-    const r=Math.max(.84,Math.min(1.16,(o.bpm*o.rate)/d.bpm)),p=(r-1)*100;
+    const want=o.bpm*o.rate/d.bpm,r=Math.max(.84,Math.min(1.16,want)),p=(r-1)*100;
     q(".pitch").value=p;q(".pv").textContent=(p>0?"+":"")+p.toFixed(1)+"%";setRate(d,r);
+    if(d.playing&&o.playing&&Math.abs(want-r)<.001){
+      let dl=phase(o,pos(o))-phase(d,pos(d));if(dl>.5)dl-=1;if(dl<-.5)dl+=1;
+      seek(d,pos(d)+dl*60/d.bpm);
+    }
   };
   const br=q(".brake");
   br.onpointerdown=()=>{init();if(d.playing)d.braking=true};
@@ -227,9 +270,26 @@ decks.forEach(d=>{
   d.el.querySelectorAll(".lp").forEach(b=>b.onclick=()=>loopSet(d,+b.dataset.b));
   q(".lh").onclick=()=>loopSet(d,(d.loop?d.loop.beats:1)/2);
   q(".ld").onclick=()=>loopSet(d,(d.loop?d.loop.beats:1)*2);
-  q(".bpm").title="Click to halve or double if the detected BPM is off";
-  q(".bpm").style.cursor="pointer";
-  q(".bpm").onclick=()=>{if(!d.bpm)return;d.bpm=d.bpm>110?d.bpm/2:d.bpm*2;q(".bpm").textContent=d.bpm.toFixed(1);if(d.loop)loopOff(d)};
+  const bi=q(".bpm");let taps=[];
+  bi.onfocus=()=>bi.select();
+  bi.onchange=()=>{const v=parseFloat(bi.value.replace(",","."));if(d.buf&&v>=40&&v<=250)setBpm(d,v);else bi.value=d.bpm?d.bpm.toFixed(1):"--.-"};
+  bi.onkeydown=e=>{
+    if(e.key==="Enter")bi.blur();
+    else if((e.key==="ArrowUp"||e.key==="ArrowDown")&&d.bpm){e.preventDefault();setBpm(d,Math.max(40,Math.min(250,d.bpm+(e.key==="ArrowUp"?1:-1)*(e.shiftKey?1:.1))))}
+  };
+  q(".bh").onclick=()=>{if(d.bpm&&d.bpm/2>=40)setBpm(d,d.bpm/2)};
+  q(".bd").onclick=()=>{if(d.bpm&&d.bpm*2<=250)setBpm(d,d.bpm*2)};
+  q(".grid").onclick=()=>{init();if(d.buf)d.beat0=pos(d)};
+  q(".tap").onclick=()=>{
+    init();if(!d.buf)return;const t=performance.now();
+    if(taps.length&&t-taps[taps.length-1]>2000)taps=[];
+    taps=[...taps,t].slice(-8);
+    if(taps.length>=3){setBpm(d,Math.max(40,Math.min(250,60000/((taps[taps.length-1]-taps[0])/(taps.length-1)))));d.beat0=pos(d)}
+  };
+  q(".pfl").onclick=e=>{
+    init();const on=e.currentTarget.classList.toggle("on");d.pfl.gain.value=on?1:0;
+    if(on&&!phonesReady)$("#hpst").textContent="Pick a headphone output first.";
+  };
   q(".wave").onclick=e=>{init();if(!d.buf)return;const r=e.currentTarget.getBoundingClientRect();seek(d,(e.clientX-r.left)/r.width*d.buf.duration)};
 
   /* scratching */
@@ -284,6 +344,8 @@ function frame(now){
       if(d.playing&&p>=d.buf.duration-.02){stop(d);d.off=0}
       if(d.playing)d.ang+=d.rate*dt*200;
       q(".time").textContent=fmt(p);
+      const bt=d.bpm&&d.playing?((Math.floor((p-(d.beat0||0))*d.bpm/60)%4)+4)%4:-1;
+      if(bt!==d.bt){d.bt=bt;[...q(".beats").children].forEach((c,k)=>c.classList.toggle("on",k===bt))}
       const cv=q(".wave"),g=cv.getContext("2d"),W=cv.width,H=cv.height;
       g.clearRect(0,0,W,H);if(d.wf)g.drawImage(d.wf,0,0);
       const x=p/d.buf.duration*W;g.fillStyle="rgba(0,0,0,.45)";g.fillRect(0,0,x,H);
