@@ -11,6 +11,6 @@
   "keywords": ["dj", "web-audio", "turntable", "mixer"],
   "license": "MIT",
   "devDependencies": {
-    "serve": "14.2.4"
+    "serve": "14.2.6"
   }
 }
