@@ -1,469 +1,79 @@
-body {
-  background-color: black;
-  color: white;
-  font-family: Arial, sans-serif;
-  text-align: center;
-}
-
-.dj-container {
-  position: relative;
-  width: 800px;
-  margin: auto;
-}
-
-.dj-interface {
-  width: 100%;
-  max-width: 800px;
-}
-
-.controls {
-  display: flex;
-  justify-content: space-between;
-  position: absolute;
-  width: 100%;
-  top: 20px;
-  left: 0;
-}
-
-#left, #right {
-  width: 45%;
-}
-
-.audio-controls {
-  width: 100%;
-  /* margin-top: 60%; */
-  /* bottom: 0; */
-}
-
-.upload-section, .spotify-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-input[type="file"], input[type="text"], button {
-  margin-top: 5px;
-}
-
-main {
-  position: relative;
-  width: 900px;
-  height: 499px;
-  background-image: url(http://www.michelacosta.com/images/2qyIBfw.jpg);
-  margin: 150px auto 0 auto;
-}
-
-#songloader-container {
-  /* width: 100%;
-  height: 150px;
-  position: fixed;
-  top: 0;
-  margin: auto;
-  overflow: hidden; */
-  /* width: 100%; */
-  position: fixed;
-  top: 0;
-  padding: 1rem;
-  background: #1f1f1f;
-  border-radius: 8px;
-  max-height: 350px;
-  overflow-y: auto;
-  overflow: hidden;
-  margin-left: auto;
-  margin-right: auto;
-  margin-bottom: 200px;
-  right: 32%;
-}
-
-#songloader {
-  width: 600px;
-  background-color: #000;
-  height: 150px;
-  margin: auto;
-  margin-top: 10px;
-  position: relative;
-  /* top: 150px; */
-  border-radius: 20px 20px 0 0;
-  border: 6px solid #444;
-  box-shadow: 0px 0px 5px #3FAEFD inset;
-  padding: 5px;
-}
-
-.song-item {
-  color: #fff;
-  padding: 8px;
-  margin-bottom: 6px;
-  background-color: #333;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-#dj-board{
-  margin-top: 40%;
-}
-
-#left .jog, 
-#left .tempo,
-#left .play,
-#left .volume,
-#right .jog, 
-#right .tempo,
-#right .play,
-#right .volume,
-#left .less,
-#left .more,
-#right .less,
-#right .more,
-#left .load,
-#right .load,
-#left .sync,
-#right .sync,
-#crossfade {
-  position: absolute;
-  float: left;
-  background-repeat: no-repeat;
-}
-
-#left .tempo:hover,
-#left .volume:hover,
-#right .tempo:hover,
-#right .volume:hover,
-#left .play:hover,
-#right .play:hover,
-#left .less:hover,
-#left .more:hover,
-#right .less:hover,
-#right .more:hover,
-#left .load:hover,
-#right .load:hover,
-#left .sync:hover,
-#right .sync:hover,
-#crossfade:hover {
-  box-shadow: 0 0 15px #DF6165, 0 0 15px #DF6165;
-  cursor: pointer;
-}
-
-#left .jog {
-  width: 262px;
-  height: 262px;
-  background-image: url(http://www.michelacosta.com/images/eOI2jNr.png);
-  left: 77px;
-  top: 149px;
-  animation: girar infinite linear;
-  animation-duration: 5s;
-}
-
-.running {
-  animation-play-state: running !important;
-}
-
-.paused {
-  animation-play-state: paused !important;
-}
-
-/* #left-tempo-range {
-  -webkit-appearance: none;
-  width: 20px;  
-  height: 200px;  
-  background: #ddd;
-  border-radius: 10px;
-  transform: rotate(-90deg); 
-  margin-top: 20px;
-  outline: none;
-}
-
-#left-tempo-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  background: #333;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-#left-tempo-range::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  background: #333;
-  border-radius: 50%;
-  cursor: pointer;
-} */
-
-#left-tempo-range{
-  writing-mode: vertical-lr;
-  direction: rtl;
-  vertical-align: middle;
-}
-
-input[type=range][orient=vertical] {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  /* width: 16px; */
-  height: 100%;
-  vertical-align: middle;
-}
-
-#left-tempo {
-  margin-bottom: 10px;
-}
+:root{--bg:#17181c;--panel:#212329;--panel2:#2a2d35;--line:#3a3e48;--txt:#e8e6e1;--dim:#8d919c;--lcd:#9dffb0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.4 "Chakra Petch",system-ui,sans-serif;min-height:100vh}
+button,select{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;box-shadow:0 2px 0 #0006}
+button:hover{border-color:var(--c,#aaa)}button:active{transform:translateY(1px);box-shadow:none}
+button.on{background:var(--c,#ffb02e);color:#111;border-color:var(--c,#ffb02e)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.top{display:flex;gap:16px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.top h1{font-size:18px;margin:0;letter-spacing:.5px;flex:1}
+.seg button{border-radius:0}.seg button:first-child{border-radius:6px 0 0 6px}.seg button:last-child{border-radius:0 6px 6px 0}
+.bay{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 16px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+.box h2{font-size:14px;margin:0 0 8px;color:var(--dim);font-weight:500}
+#lib{max-height:140px;overflow:auto;display:grid;gap:4px}
+.drop{border:1px dashed var(--line);border-radius:8px;padding:14px;color:var(--dim);text-align:center}
+.drop.hot{border-color:#fff;color:#fff}
+.song{display:flex;gap:8px;align-items:center;background:var(--panel2);padding:4px 8px;border-radius:6px}
+.song span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.song button{padding:2px 9px;border-color:var(--c);color:var(--c)}.song button:hover{background:var(--c);color:#111}
+body.dec2 .song .x{display:none}
+.row{display:flex;gap:8px}
+input[type=text]{flex:1;background:#101114;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 10px;min-width:0}
+.stage{display:grid;grid-template-columns:1fr 200px 1fr;gap:12px;padding:0 16px 24px}
+body.dec2 .x{display:none!important}
+#d1{grid-column:1;grid-row:1}#d2{grid-column:3;grid-row:1}#d3{grid-column:1;grid-row:2}#d4{grid-column:3;grid-row:2}
+.mixer{grid-column:2;grid-row:1/span 2;display:flex;flex-direction:column;align-items:center;gap:14px}
+.deck{border-top:3px solid var(--c)}
+.deck header{display:flex;gap:10px;align-items:center;margin-bottom:6px}
+.tag{background:var(--c);color:#111;border-radius:4px;padding:0 8px;font-weight:700}
+.title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)}
+.lcd{font:600 15px ui-monospace,Menlo,monospace;color:var(--lcd);background:#0a0d0b;padding:2px 8px;border-radius:4px;min-width:84px;text-align:center}
+canvas.wave{width:100%;height:70px;background:#0d0e11;border-radius:6px;cursor:pointer;display:block}
+.mid{display:flex;align-items:center;justify-content:center;gap:14px;margin:10px 0}
+.col{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--dim)}
+input[type=range]{accent-color:var(--c,#ffb02e);margin:0}
+.platter{width:min(280px,34vw);min-width:190px;touch-action:none;cursor:grab;user-select:none}
+.platter:active{cursor:grabbing}
+.btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.btns button{min-width:62px}
+.knobs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;font-size:12px;color:var(--dim)}
+.knobs label{display:flex;flex-direction:column-reverse;gap:2px;align-items:center}
+.vu{width:8px;height:170px;background:#0d0e11;border-radius:4px;position:relative;overflow:hidden}
+.vu i{position:absolute;bottom:0;left:0;right:0;background:var(--c);height:0}
+.xf{width:100%;padding:0 6px}.xf input{width:100%}
+@media(max-width:1000px){.stage{grid-template-columns:1fr}.stage>*{grid-column:1!important;grid-row:auto!important}.mixer{order:-1}.bay{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* fader caps */
+.fader{position:relative;flex:none;color:var(--c,#ddd)}
+.fader.v{width:52px;height:170px}.fader.h{width:100%;height:52px}
+.fader input.fd{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:grab}
+.fader.v input.fd{writing-mode:vertical-lr;direction:rtl}
+.fader:focus-within{outline:2px solid #fff;outline-offset:2px;border-radius:4px}
+.slot{position:absolute;background:#07080a;border-radius:3px;box-shadow:inset 0 1px 3px #000,0 0 0 1px var(--line)}
+.fader.v .slot{left:50%;width:6px;margin-left:-3px;top:6px;bottom:6px}
+.fader.h .slot{top:50%;height:6px;margin-top:-3px;left:6px;right:6px}
+.fader::before,.fader::after{content:"";position:absolute;opacity:.7}
+.fader.v::before,.fader.v::after{top:12px;bottom:12px;width:7px;background:repeating-linear-gradient(to bottom,#7d828e 0 1px,transparent 1px 16px)}
+.fader.v::before{left:2px}.fader.v::after{right:2px}
+.fader.h::before,.fader.h::after{left:12px;right:12px;height:7px;background:repeating-linear-gradient(to right,#7d828e 0 1px,transparent 1px 16px)}
+.fader.h::before{top:2px}.fader.h::after{bottom:2px}
+.cap{position:absolute;pointer-events:none;border:1px solid #000;border-radius:3px;
+  box-shadow:0 4px 8px #000a,inset 0 1px 0 #ffffff40}
+.cap::after{content:"";position:absolute;background:currentColor;border-radius:1px}
+.fader.v .cap{left:50%;width:40px;height:26px;margin-left:-20px;bottom:calc(var(--p,.5)*(100% - 26px));
+  background:repeating-linear-gradient(to bottom,#3b3e46 0 3px,#24262c 3px 5px)}
+.fader.v .cap::after{left:4px;right:4px;top:50%;height:3px;margin-top:-1px}
+.fader.h .cap{top:50%;height:40px;width:26px;margin-top:-20px;left:calc(var(--p,.5)*(100% - 26px));
+  background:repeating-linear-gradient(to right,#3b3e46 0 3px,#24262c 3px 5px)}
+.fader.h .cap::after{top:4px;bottom:4px;left:50%;width:3px;margin-left:-1px}
+.fader:hover .cap{border-color:currentColor}
 
 
-#left .tempo {
-  /* width: 48px; */
-  height: 100px;
-  left: 43px;
-  top: 51px;
-  /* background-color: white; */
-}
-
-#left .volume {
-  /* width: 48px; */
-  height: 130px;
-  left: 398px;
-  top: 278px;
-  /* background-color: white; */
-}
-
-.info {
-  position: absolute;
-  width: 270px;
-  height: 60px;
-  background-color: #000;
-  border-radius: 5px;
-  border: 2px solid #333;
-  box-shadow: 0 0 10px #555 inset;
-  overflow: hidden;
-}
-
-#left .info {
-  left: 90px;
-  top: 12px;
-}
-
-#right .info {
-  right: 90px;
-  top: 12px;
-}
-
-#left .sync {
-  width: 32px;
-  height: 32px;
-  left: 35px;
-  top: 187px;
-  border-radius: 0 0 10px 10px;
-}
-
-#right .sync {
-  width: 32px;
-  height: 32px;
-  right: 35px;
-  top: 187px;
-  border-radius: 0 0 10px 10px;
-}
-
-#left .play {
-  width: 46px;
-  height: 46px;
-  left: 85px;
-  top: 401px;
-  border-radius: 23px;
-}
-
-#left .less {
-  width: 33px;
-  height: 32px;
-  left: 146px;
-  top: 433px;
-  border-radius: 16px;
-}
-
-#left .more {
-  width: 33px;
-  height: 32px;
-  left: 192px;
-  top: 439px;
-  border-radius: 16px;
-}
-
-#left .load {
-  width: 32px;
-  height: 32px;
-  left: 372px;
-  top: 32px;
-  border-radius: 16px;
-}
-
-#right .load {
-  width: 32px;
-  height: 32px;
-  left: 495px;
-  top: 32px;
-  border-radius: 16px;
-}
-
-#right .less {
-  width: 33px;
-  height: 32px;
-  left: 630px;
-  top: 433px;
-  border-radius: 16px;
-}
-
-#right .more {
-  width: 33px;
-  height: 32px;
-  left: 675px;
-  top: 439px;
-  border-radius: 16px;
-}
-
-#right .jog {
-  width: 262px;
-  height: 262px;
-  background-image: url(http://www.michelacosta.com/images/eOI2jNr.png);
-  left: 562px;
-  top: 149px;
-  animation: girar infinite linear;
-  animation-duration: 5s;
-}
-
-#right .tempo {
-  /* width: 48px; */
-  height: 100px;
-  left: 826px;
-  top: 51px;
-  /* background-color: white; */
-}
-
-#right .volume {
-  /* width: 48px; */
-  height: 130px;
-  left: 473px;
-  top: 278px;
-  /* background-color: white; */
-}
-
-#right .play {
-  width: 46px;
-  height: 46px;
-  left: 568px;
-  top: 401px;
-  border-radius: 23px;
-}
-
-.info-time {
-  display: inline-block;
-  position: absolute;
-  bottom: 7px;
-  left: 0;
-  height: 20px;
-  font-family: 'Nova Square', sans-serif;
-  color: #3FAEFD;
-  text-transform: uppercase;
-  white-space: nowrap;
-  padding: 10px 10px 0 10px;
-  width: 120px;
-  font-weight: bold;
-}
-
-input[type=range] {
-  appearance: none;
-  display: inline-block;
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  bottom: 0;
-}
-
-/* Range Input Styles */
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  border: 1px solid #000000;
-  height: 11px;
-  width: 10px;
-  border-radius: 3px;
-  background: #9a9a9a;
-  cursor: pointer;
-  margin-top: -4px;
-  box-shadow: 1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
-}
-
-input[type=range]::-webkit-slider-runnable-track {
-  width: 100%;
-  height: 3px;
-  cursor: pointer;
-  box-shadow: 1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
-  /* background: #3071a9; */
-  border-radius: 1.3px;
-  border: 0.2px solid #010101;
-}
-
-input[type=range]:focus::-webkit-slider-runnable-track {
-  background: #367ebd;
-}
-
-#crossfade-container {
-  position:relative;
-    left:377px;
-    top:347px;
-    width:138px;
-    height:46px;
-}
-
-#crossfade {
-  width: 100%;
-  /* width: 10px; */
-  /* height: 30px; */
-  background-color: #3FAEFD;
-}
-
-#crossfader{
-  width: 100%;
-}
-
-
-#left, #right {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  margin: 20px;
-  padding: 10px;
-}
-
-.jog {
-  width: 100px;
-  height: 100px;
-  background-color: lightgray;
-  margin: 5px;
-  border-radius: 50%;
-  transition: transform 0.1s linear;
-  pointer-events: all;
-}
-
-.jog.active {
-  border: 2px solid #ffcc00; /* Gold border for active jog */
-  background-color: rgba(255, 204, 0, 0.2); /* Light gold background */
-  box-shadow: 0 0 10px rgba(255, 204, 0, 0.5); /* Subtle glow */
-  animation: spin 2s linear infinite;
-  transform: scale(0.95);
-
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-
-.tempo, .volume, .play, .less, .more, .load, .sync, .info, .info-time, .info-tempo {
-  margin: 5px;
-  font-size: 16px;
-}
-
-input[type="range"] {
-  width: 100%;
-  margin: 5px;
-}
+/* rotary knobs */
+.knob{width:62px;height:62px;color:var(--c);cursor:ns-resize;touch-action:none;border-radius:50%;user-select:none}
+.knob svg{width:100%;height:100%;display:block;filter:drop-shadow(0 3px 4px #000a)}
+.knob .ind{transform:rotate(calc(-135deg + var(--p,.5)*270deg))}
+.knob:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.knob:hover circle:nth-of-type(1){stroke:currentColor}

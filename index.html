@@ -1,98 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DJ Audio Mixer</title>
-  <link href="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="index.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual DJ</title>
+<link rel="stylesheet" href="index.css">
 </head>
-<body>
-  <main>
-    <div id="songloader-container">
-      <!-- File Upload and Spotify Link Input -->
-      <div class="audio-controls w-auto">
-        <button 
-          class="float-right py-2.5 px-6 ms-2 text-sm font-medium text-white bg-red-600 rounded-lg border border-red-700 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-800" 
-          id="clear-queue">
-          Clear Queue
-        </button>
+<body class="dec2">
+<div class="top">
+  <h1>Virtual DJ</h1>
+  <div class="seg" role="group" aria-label="Number of decks"><button id="m2" class="on">2 decks</button><button id="m4">4 decks</button></div>
+</div>
 
-        <div class="text-left">
-          <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white" for="multiple_files">Upload a track</label>
-          <input class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" id="file-upload" type="file" accept="audio/*" title="audio" multiple>
+<div class="bay">
+  <div class="box" id="drop">
+    <h2>Library</h2>
+    <div class="row" style="margin-bottom:8px"><input type="file" id="file" accept="audio/*" multiple hidden><button id="pick">Add tracks</button><span style="color:var(--dim);align-self:center">or drop audio files anywhere</span></div>
+    <div id="lib"><div class="drop">No tracks yet. Add files, then load them onto a deck.</div></div>
+  </div>
+  <div class="box">
+    <h2>Spotify</h2>
+    <div class="row"><input type="text" id="sp" placeholder="Paste a Spotify track, album or playlist link"><button id="spgo">Preview</button></div>
+    <div id="spout" style="margin-top:8px;color:var(--dim)">Spotify does not hand out raw audio, so these tracks cannot pass through the decks yet. Connecting an account is the next step.</div>
+  </div>
+</div>
 
-    
-          <div class="flex items-center">
-            <label for="spotify-link" class="sr-only">Enter Spotify Track/Playlist Link:</label>
-            <div class="relative w-full">
-              <input type="text" id="spotify-link" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Paste Spotify URL" required />
-            </div>
-            <button type="submit" id="load-spotify" class="inline-flex items-center w-60 py-2.5 px-6 ms-2 text-sm font-medium text-white bg-white-700 rounded-lg border border-white-700 hover:bg-white-800 focus:ring-4 focus:outline-none focus:ring-white-300 dark:bg-white-600 dark:hover:bg-white-700 dark:focus:ring-white-800">
-              Load From Spotify
-            </button>
-          </div>
-        </div>
-      </div>
+<div class="stage" id="stage">
+  <div class="box mixer">
+    <h2>Mixer</h2>
+    <div class="col"><span>Master</span><input type="range" class="v fd" id="mvol" min="0" max="1" step=".01" value=".85" aria-label="Master volume"></div>
+    <div class="xf"><div class="col" style="align-items:stretch"><input type="range" class="fd h" id="cf" min="0" max="1" step=".01" value=".5" aria-label="Crossfader"><span style="display:flex;justify-content:space-between"><b>A</b><span>crossfader</span><b>B</b></span></div></div>
+    <p style="color:var(--dim);font-size:12px;margin:0;text-align:center">Grab a platter and drag it to scratch. Click a waveform to jump.</p>
+  </div>
+</div>
 
-      <div id="songloader"></div>
-    </div>
-
-    <section id="dj-board">
-      <!-- Left Deck -->
-      <div id="left">
-        <div class="jog" id="left-jog"></div>
-        <div class="tempo" id="left-tempo">
-          <input type="range"  orient="vertical" id="left-tempo-range" min="-10" max="10" value="1" class="tempo-range w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" title="left-tempo-range">
-        </div>
-        
-        <div class="volume">
-          <input type="range" orient="vertical" class="volume-range w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" id="left-volume-range" min="0" max="1" step="0.01" value="1" title="volume-range">
-        </div>
-        <div class="play" id="left-play"></div>
-        <div class="less" id="left-less"></div>
-        <div class="more" id="left-more"></div>
-        <div class="load" id="left-load"></div>
-        <div class="sync" id="left-sync"></div>
-        <div class="info" id="left-info"></div>
-        <!-- <div class="info-time" id="left-info-time">00:00</div> -->
-      </div>
-      
-      <div id="right">
-        <div class="jog" id="right-jog"></div>
-        <div class="tempo" id="right-tempo">
-          <input type="range"  orient="vertical" id="right-tempo-range" min="-10" max="10" value="1" class="tempo-range w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" title="right-tempo-range">
-        </div>
-
-        <div class="volume">
-          <input type="range" orient="vertical" class="volume-range w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" id="right-volume-range" min="0" max="1" step="0.01" value="1" title="volume-range">
-        </div>
-        <div class="play" id="right-play"></div>
-        <div class="less" id="right-less"></div>
-        <div class="more" id="right-more"></div>
-        <div class="load" id="right-load"></div>
-        <div class="sync" id="right-sync"></div>
-        <div class="info" id="right-info"></div>
-        <div class="info-tempo" id="right-info-tempo">120 BPM</div>
-      </div>
-      
-    </section>
-
-    <!-- Crossfade -->
-    <div id="crossfade-container">
-      <div id="crossfade">
-        <input type="range" id="crossfader" min="0" max="100" value="50" title="crossfader">
-      </div>
-    </div>
-
-    
-
-    <div id="log"></div>
-  </main>
-
-  <!-- Picture credit from http://www.michelacosta.com -->
-  <script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js"></script>
-  <script src="bpm-detection.js"></script>
-  <script src="index.js"></script>
+<script src="index.js"></script>
 </body>
 </html>

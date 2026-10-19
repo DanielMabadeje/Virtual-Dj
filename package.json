@@ -1,0 +1,16 @@
+{
+  "name": "virtual-dj",
+  "version": "2.0.0",
+  "description": "A browser DJ board with 2 or 4 decks, scratching and stock FX, built on the Web Audio API.",
+  "private": true,
+  "main": "index.html",
+  "scripts": {
+    "start": "serve . -l 3000",
+    "dev": "serve . -l 3000"
+  },
+  "keywords": ["dj", "web-audio", "turntable", "mixer"],
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "14.2.4"
+  }
+}
