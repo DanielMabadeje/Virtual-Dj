@@ -77,3 +77,10 @@ input[type=range]{accent-color:var(--c,#ffb02e);margin:0}
 .knob .ind{transform:rotate(calc(-135deg + var(--p,.5)*270deg))}
 .knob:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .knob:hover circle:nth-of-type(1){stroke:currentColor}
+
+/* hot cues and loops */
+.pads,.loops{display:flex;gap:6px;align-items:center;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.loops>span{color:var(--dim);font-size:12px;margin-right:4px}
+.loops button{min-width:40px;padding:4px 8px}
+.hc{min-width:78px;border-style:dashed;color:var(--dim)}
+.hc.set{border-style:solid;border-color:var(--c);color:var(--txt);background:color-mix(in srgb,var(--c) 28%,var(--panel2))}

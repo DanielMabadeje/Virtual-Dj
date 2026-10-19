@@ -27,6 +27,8 @@ COL.forEach((c,i)=>{
     <div class="col"><div style="display:flex;gap:6px"><input type="range" class="v fd vol" min="0" max="1" step=".01" value=".8" aria-label="Volume ${n}"><div class="vu"><i></i></div></div><span>level</span></div>
   </div>
   <div class="btns"><button class="play">Play</button><button class="cue">Cue</button><button class="sync">Sync</button><button class="brake">Brake</button><button class="echo">Echo</button><button class="rev">Reverb</button></div>
+  <div class="pads">${"ABCD".split("").map((l,k)=>`<button class="hc" title="Click to set or jump. Right-click or shift-click to clear.">${l}</button>`).join("")}</div>
+  <div class="loops"><span>Loop (beats)</span><button class="lh" title="Halve">&frac12;</button>${[1,2,4,8].map(b=>`<button class="lp" data-b="${b}">${b}</button>`).join("")}<button class="ld" title="Double">&times;2</button></div>
   <div class="knobs">
     <label>Low<input type="range" class="kn eql" min="-1" max="1" step=".01" value="0"></label>
     <label>Mid<input type="range" class="kn eqm" min="-1" max="1" step=".01" value="0"></label>
@@ -36,7 +38,7 @@ COL.forEach((c,i)=>{
   <div class="row" style="margin-top:10px;align-items:center;color:var(--dim);font-size:12px">Crossfader side
     <select class="asg" style="background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px"><option value="A"${i%2?"":" selected"}>A</option><option value="B"${i%2?" selected":""}>B</option><option value="T">Thru</option></select></div>`;
   $("#stage").appendChild(s);
-  decks.push({n,c,el:s,buf:null,rev:null,playing:false,off:0,t0:0,rate:1,cue:0,bpm:0,ang:0,scr:false,v:0,moved:false,braking:false,wf:null});
+  decks.push({n,c,el:s,buf:null,rev:null,playing:false,off:0,t0:0,rate:1,cue:0,bpm:0,ang:0,scr:false,v:0,moved:false,braking:false,wf:null,hc:[null,null,null,null],loop:null});
 });
 const $d=(d,q)=>$(q,d.el);
 document.querySelectorAll("input.fd").forEach(i=>{
@@ -98,18 +100,29 @@ function applyX(d){
 }
 
 /* ---------- transport ---------- */
-const pos=d=>d.playing?Math.min(d.buf.duration,d.off+(ctx.currentTime-d.t0)*d.rate):d.off;
+const pos=d=>{
+  if(!d.playing)return d.off;
+  let p=d.off+(ctx.currentTime-d.t0)*d.rate;const L=d.loop;
+  if(L&&p>=L.e)p=L.s+(p-L.s)%(L.e-L.s);
+  return Math.min(d.buf.duration,p);
+};
 function play(d){
   if(!d.buf||d.playing)return;
   if(d.off>=d.buf.duration-.05)d.off=0;
-  const s=ctx.createBufferSource();s.buffer=d.buf;s.playbackRate.value=d.rate;s.connect(d.low);s.start(0,d.off);
+  const s=ctx.createBufferSource();s.buffer=d.buf;s.playbackRate.value=d.rate;if(d.loop){s.loopStart=d.loop.s;s.loopEnd=d.loop.e;s.loop=true}
+  s.connect(d.low);s.start(0,d.off);
   d.src=s;d.t0=ctx.currentTime;d.playing=true;$d(d,".play").classList.add("on");$d(d,".play").textContent="Pause";
 }
 function stop(d){
   if(d.playing){d.off=pos(d);try{d.src.stop()}catch(e){}d.src.disconnect();d.playing=false}
   $d(d,".play").classList.remove("on");$d(d,".play").textContent="Play";
 }
-function seek(d,t){const was=d.playing;if(was)stop(d);d.off=Math.max(0,Math.min(d.buf.duration-.01,t));if(was)play(d)}
+function seek(d,t){
+  const was=d.playing;if(was)stop(d);
+  d.off=Math.max(0,Math.min(d.buf.duration-.01,t));
+  if(d.loop&&(d.off<d.loop.s||d.off>=d.loop.e)){d.loop=null;loopUI(d)}
+  if(was)play(d);
+}
 function setRate(d,r){if(d.playing){d.off=pos(d);d.t0=ctx.currentTime;d.src.playbackRate.value=r}d.rate=r}
 
 /* ---------- loading, waveform, bpm ---------- */
@@ -128,7 +141,7 @@ async function load(d,file){
     const buf=await ctx.decodeAudioData(await file.arrayBuffer());
     const rev=ctx.createBuffer(buf.numberOfChannels,buf.length,buf.sampleRate);
     for(let c=0;c<buf.numberOfChannels;c++)rev.getChannelData(c).set(buf.getChannelData(c).slice().reverse());
-    d.buf=buf;d.rev=rev;d.off=0;d.cue=0;d.bpm=bpmOf(buf);
+    d.buf=buf;d.rev=rev;d.off=0;d.cue=0;d.bpm=bpmOf(buf);d.hc=[null,null,null,null];d.loop=null;padsUI(d);loopUI(d);
     const W=900,H=70,o=document.createElement("canvas");o.width=W;o.height=H;const g=o.getContext("2d"),x=buf.getChannelData(0),step=Math.floor(x.length/W);
     g.fillStyle=d.c;
     for(let i=0;i<W;i++){let m=0;for(let j=0;j<step;j+=16){const v=Math.abs(x[i*step+j]);if(v>m)m=v}const h=Math.max(1,m*H*.95);g.fillRect(i,(H-h)/2,1,h)}
@@ -160,6 +173,25 @@ $("#spgo").onclick=()=>{
   f.width="100%";f.height="152";f.style.border="0";f.allow="encrypted-media";o.append(f);
 };
 
+/* ---------- hot cues and loops ---------- */
+const LET="ABCD";
+function padsUI(d){d.el.querySelectorAll(".hc").forEach((b,i)=>{const t=d.hc[i];b.classList.toggle("set",t!=null);b.textContent=LET[i]+(t!=null?" "+fmt(t):"")})}
+function loopUI(d){d.el.querySelectorAll(".lp").forEach(b=>b.classList.toggle("on",!!d.loop&&Math.abs(d.loop.beats-+b.dataset.b)<.001))}
+function loopOff(d){
+  if(!d.loop)return;
+  if(d.playing){d.off=pos(d);d.t0=ctx.currentTime;d.src.loop=false}
+  d.loop=null;loopUI(d);
+}
+function loopSet(d,beats){
+  if(!d.buf||!d.bpm||beats<.25||beats>32)return;init();
+  if(d.loop&&Math.abs(d.loop.beats-beats)<.001){loopOff(d);return}
+  const len=beats*60/d.bpm,p=pos(d),s=d.loop?d.loop.s:p;
+  if(s+len>d.buf.duration)return;
+  if(d.loop&&d.playing){const q=s+(p-s)%len;stop(d);d.off=q;d.loop={s,e:s+len,beats};play(d)}
+  else{d.loop={s,e:s+len,beats};if(d.playing){d.src.loopStart=s;d.src.loopEnd=s+len;d.src.loop=true}}
+  loopUI(d);
+}
+
 /* ---------- controls ---------- */
 decks.forEach(d=>{
   const q=s=>$d(d,s);
@@ -186,6 +218,18 @@ decks.forEach(d=>{
   br.onpointerdown=()=>{init();if(d.playing)d.braking=true};
   const rel=()=>{if(d.braking){d.braking=false;if(d.playing)setRate(d,1+ +q(".pitch").value/100)}};
   br.onpointerup=rel;br.onpointerleave=rel;
+  d.el.querySelectorAll(".hc").forEach((b,i)=>{
+    b.onclick=e=>{init();if(!d.buf)return;
+      if(e.shiftKey)d.hc[i]=null;else if(d.hc[i]==null)d.hc[i]=pos(d);else seek(d,d.hc[i]);
+      padsUI(d)};
+    b.oncontextmenu=e=>{e.preventDefault();d.hc[i]=null;padsUI(d)};
+  });
+  d.el.querySelectorAll(".lp").forEach(b=>b.onclick=()=>loopSet(d,+b.dataset.b));
+  q(".lh").onclick=()=>loopSet(d,(d.loop?d.loop.beats:1)/2);
+  q(".ld").onclick=()=>loopSet(d,(d.loop?d.loop.beats:1)*2);
+  q(".bpm").title="Click to halve or double if the detected BPM is off";
+  q(".bpm").style.cursor="pointer";
+  q(".bpm").onclick=()=>{if(!d.bpm)return;d.bpm=d.bpm>110?d.bpm/2:d.bpm*2;q(".bpm").textContent=d.bpm.toFixed(1);if(d.loop)loopOff(d)};
   q(".wave").onclick=e=>{init();if(!d.buf)return;const r=e.currentTarget.getBoundingClientRect();seek(d,(e.clientX-r.left)/r.width*d.buf.duration)};
 
   /* scratching */
@@ -244,6 +288,10 @@ function frame(now){
       g.clearRect(0,0,W,H);if(d.wf)g.drawImage(d.wf,0,0);
       const x=p/d.buf.duration*W;g.fillStyle="rgba(0,0,0,.45)";g.fillRect(0,0,x,H);
       g.fillStyle="#fff";g.fillRect(x-1,0,2,H);g.fillStyle=d.c;g.fillRect(d.cue/d.buf.duration*W-1,0,2,H);
+      const dur=d.buf.duration;
+      if(d.loop){g.fillStyle=d.c+"66";g.fillRect(d.loop.s/dur*W,0,(d.loop.e-d.loop.s)/dur*W,H)}
+      g.font="bold 12px sans-serif";
+      d.hc.forEach((t,i)=>{if(t==null)return;const hx=t/dur*W;g.fillStyle="#fff";g.fillRect(hx-1,0,2,H);g.fillText(LET[i],hx+4,12)});
       const a=new Uint8Array(d.an.fftSize);d.an.getByteTimeDomainData(a);let m=0;for(const v of a)m=Math.max(m,Math.abs(v-128));
       q(".vu i").style.height=Math.min(100,m/128*140)+"%";
     }
