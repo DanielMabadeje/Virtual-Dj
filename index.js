@@ -9,8 +9,9 @@ COL.forEach((c,i)=>{
   s.className="box deck"+(i>1?" x":"");s.id="d"+n;s.style.setProperty("--c",c);
   s.innerHTML=`
   <header><span class="tag">${n}</span><span class="title">Empty. Load a track from the library.</span><input class="lcd bpm" type="text" inputmode="decimal" value="--.-" title="BPM: type a number, or use the up and down arrow keys" aria-label="BPM deck ${n}"><span class="lcd time">0:00</span></header>
+  <div class="zwrap"><canvas class="zoom" width="900" height="64" title="Scroll to zoom"></canvas><span class="zb"><button class="zo" title="Zoom out">&minus;</button><button class="zi" title="Zoom in">+</button></span></div>
   <canvas class="wave" width="900" height="70"></canvas>
-  <div class="gridrow"><span class="beats" title="Current beat"><i></i><i></i><i></i><i></i></span><button class="bh" title="Halve the BPM">&frac12;</button><button class="bd" title="Double the BPM">&times;2</button><button class="tap" title="Tap along to the beat to set BPM and beat 1">Tap</button><button class="grid" title="Mark the playhead as beat 1">Set 1</button></div>
+  <div class="gridrow"><span class="beats" title="Current beat"><i></i><i></i><i></i><i></i></span><button class="bh" title="Halve the BPM">&frac12;</button><button class="bd" title="Double the BPM">&times;2</button><button class="tap" title="Tap along to the beat to set BPM and beat 1">Tap</button><button class="grid" title="Mark the playhead as beat 1">Set 1</button><button class="gl" title="Nudge the grid earlier (shift for finer)">&lsaquo;</button><button class="gr" title="Nudge the grid later (shift for finer)">&rsaquo;</button><button class="quant on" title="Snap cues and loops to the beat">Quant</button><span class="lcd barlcd" title="Bar . beat">-</span></div>
   <div class="mid">
     <div class="col"><span class="pv">0.0%</span><input type="range" class="v fd pitch" min="-16" max="16" step=".1" value="0" aria-label="Tempo ${n}"><span>tempo</span></div>
     <svg class="platter" viewBox="-100 -100 200 200" aria-label="Platter ${n}">
@@ -39,7 +40,7 @@ COL.forEach((c,i)=>{
   <div class="row" style="margin-top:10px;align-items:center;color:var(--dim);font-size:12px">Crossfader side
     <select class="asg" style="background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px"><option value="A"${i%2?"":" selected"}>A</option><option value="B"${i%2?" selected":""}>B</option><option value="T">Thru</option></select></div>`;
   $("#stage").appendChild(s);
-  decks.push({n,c,el:s,buf:null,rev:null,playing:false,off:0,t0:0,rate:1,cue:0,bpm:0,ang:0,scr:false,v:0,moved:false,braking:false,wf:null,hc:[null,null,null,null],loop:null});
+  decks.push({n,c,el:s,buf:null,rev:null,playing:false,off:0,t0:0,rate:1,cue:0,bpm:0,ang:0,scr:false,v:0,moved:false,braking:false,wf:null,quant:true,zs:8,pk:null,pps:100,pkScale:1,hc:[null,null,null,null],loop:null});
 });
 const $d=(d,q)=>$(q,d.el);
 document.querySelectorAll("input.fd").forEach(i=>{
@@ -153,6 +154,9 @@ async function load(d,file){
     const W=900,H=70,o=document.createElement("canvas");o.width=W;o.height=H;const g=o.getContext("2d"),x=buf.getChannelData(0),step=Math.floor(x.length/W);
     g.fillStyle=d.c;
     for(let i=0;i<W;i++){let m=0;for(let j=0;j<step;j+=16){const v=Math.abs(x[i*step+j]);if(v>m)m=v}const h=Math.max(1,m*H*.95);g.fillRect(i,(H-h)/2,1,h)}
+    {const x0=buf.getChannelData(0),st=Math.floor(buf.sampleRate/100),pk=new Float32Array(Math.ceil(x0.length/st)+1);let mx=0;
+    for(let i=0;i<pk.length;i++){let m=0;const e=Math.min(x0.length,(i+1)*st);for(let j=i*st;j<e;j+=6){const v=Math.abs(x0[j]);if(v>m)m=v}pk[i]=m;if(m>mx)mx=m}
+    d.pk=pk;d.pps=buf.sampleRate/st;d.pkScale=mx?1/mx:1}
     d.wf=o;t.textContent=file.name.replace(/\.[^.]+$/,"");setBpm(d,d.bpm);
     $d(d,".pitch").value=0;d.rate=1;$d(d,".pv").textContent="0.0%";
   }catch(err){t.textContent="Could not read that file. Try an mp3, wav or m4a."}
@@ -175,6 +179,7 @@ addEventListener("drop",e=>{e.preventDefault();$("#drop").classList.remove("hot"
 
 /* ---------- bpm, beat grid, headphones ---------- */
 function setBpm(d,v){d.bpm=v;$d(d,".bpm").value=v?v.toFixed(1):"--.-";if(d.loop&&ctx)loopOff(d)}
+const snap=(d,t)=>{if(!d.quant||!d.bpm)return t;const bl=60/d.bpm,b0=d.beat0||0;return Math.max(0,b0+Math.round((t-b0)/bl)*bl)};
 const phase=(d,p)=>(((p-(d.beat0||0))*d.bpm/60)%1+1)%1;
 function hpMixSet(){
   if(!ctx)return;const m=+$("#hpmix").value;
@@ -215,10 +220,16 @@ function loopOff(d){
 function loopSet(d,beats){
   if(!d.buf||!d.bpm||beats<.25||beats>32)return;init();
   if(d.loop&&Math.abs(d.loop.beats-beats)<.001){loopOff(d);return}
-  const len=beats*60/d.bpm,p=pos(d),s=d.loop?d.loop.s:p;
+  const len=beats*60/d.bpm,p=pos(d),s=d.loop?d.loop.s:snap(d,p);
   if(s+len>d.buf.duration)return;
   if(d.loop&&d.playing){const q=s+(p-s)%len;stop(d);d.off=q;d.loop={s,e:s+len,beats};play(d)}
-  else{d.loop={s,e:s+len,beats};if(d.playing){d.src.loopStart=s;d.src.loopEnd=s+len;d.src.loop=true}}
+  else{
+    d.loop={s,e:s+len,beats};
+    if(d.playing){
+      if(s+len<=p+.03){stop(d);d.off=s;play(d)}
+      else{d.src.loopStart=s;d.src.loopEnd=s+len;d.src.loop=true}
+    }
+  }
   loopUI(d);
 }
 
@@ -226,7 +237,7 @@ function loopSet(d,beats){
 decks.forEach(d=>{
   const q=s=>$d(d,s);
   q(".play").onclick=()=>{init();if(!d.buf)return;d.playing?stop(d):play(d)};
-  q(".cue").onclick=()=>{init();if(!d.buf)return;if(d.playing){stop(d);d.off=d.cue}else d.cue=d.off};
+  q(".cue").onclick=()=>{init();if(!d.buf)return;if(d.playing){stop(d);d.off=d.cue}else d.cue=snap(d,d.off)};
   q(".pitch").oninput=e=>{init();const v=+e.target.value;q(".pv").textContent=(v>0?"+":"")+v.toFixed(1)+"%";setRate(d,1+v/100)};
   q(".vol").oninput=e=>{init();d.vol.gain.value=+e.target.value};
   q(".eql").oninput=e=>{init();d.low.gain.value=eqdb(+e.target.value)};
@@ -255,7 +266,7 @@ decks.forEach(d=>{
   br.onpointerup=rel;br.onpointerleave=rel;
   d.el.querySelectorAll(".hc").forEach((b,i)=>{
     b.onclick=e=>{init();if(!d.buf)return;
-      if(e.shiftKey)d.hc[i]=null;else if(d.hc[i]==null)d.hc[i]=pos(d);else seek(d,d.hc[i]);
+      if(e.shiftKey)d.hc[i]=null;else if(d.hc[i]==null)d.hc[i]=snap(d,pos(d));else seek(d,d.quant&&d.bpm&&d.playing?d.hc[i]+phase(d,pos(d))*60/d.bpm:d.hc[i]);
       padsUI(d)};
     b.oncontextmenu=e=>{e.preventDefault();d.hc[i]=null;padsUI(d)};
   });
@@ -272,6 +283,11 @@ decks.forEach(d=>{
   q(".bh").onclick=()=>{if(d.bpm&&d.bpm/2>=40)setBpm(d,d.bpm/2)};
   q(".bd").onclick=()=>{if(d.bpm&&d.bpm*2<=250)setBpm(d,d.bpm*2)};
   q(".grid").onclick=()=>{init();if(d.buf)d.beat0=pos(d)};
+  q(".gl").onclick=e=>{d.beat0=(d.beat0||0)-(e.shiftKey?.002:.01)};
+  q(".gr").onclick=e=>{d.beat0=(d.beat0||0)+(e.shiftKey?.002:.01)};
+  q(".quant").onclick=e=>{d.quant=e.currentTarget.classList.toggle("on")};
+  q(".zi").onclick=()=>{d.zs=Math.max(2,d.zs/1.4)};q(".zo").onclick=()=>{d.zs=Math.min(32,d.zs*1.4)};
+  q(".zoom").onwheel=e=>{e.preventDefault();d.zs=Math.max(2,Math.min(32,d.zs*(e.deltaY>0?1.12:1/1.12)))};
   q(".tap").onclick=()=>{
     init();if(!d.buf)return;const t=performance.now();
     if(taps.length&&t-taps[taps.length-1]>2000)taps=[];
@@ -322,6 +338,37 @@ function setMode(four){
 }
 $("#m2").onclick=()=>setMode(false);$("#m4").onclick=()=>setMode(true);
 
+/* ---------- bar markers and the scrolling waveform ---------- */
+function drawBars(d,g,W,H){
+  if(!d.bpm)return;const bar=240/d.bpm,dur=d.buf.duration,b0=d.beat0||0;
+  g.font="10px sans-serif";g.fillStyle="#ffffff99";
+  for(let n=0;b0+n*bar<dur;n+=8){const x=(b0+n*bar)/dur*W;g.fillRect(x,H-8,1,8);if(n%16===0)g.fillText(n+1,x+2,H-9)}
+}
+function drawZoom(d,p){
+  const cv=$d(d,".zoom"),g=cv.getContext("2d"),W=cv.width,H=cv.height,S=d.zs,c=W/2,pk=d.pk,dur=d.buf.duration;
+  g.clearRect(0,0,W,H);const tL=p-S/2,tR=p+S/2;
+  g.fillStyle=d.c+"88";
+  for(let x=0;x<W;x++){
+    if(x===c)g.fillStyle=d.c;
+    const t0=tL+x/W*S;if(t0<0||t0>dur)continue;
+    const i0=Math.floor(t0*d.pps),i1=Math.min(pk.length-1,Math.max(i0,Math.floor((t0+S/W)*d.pps)));let m=0;
+    for(let i=i0;i<=i1;i++)if(pk[i]>m)m=pk[i];
+    const h=Math.max(1,m*d.pkScale*H*.92);g.fillRect(x,(H-h)/2,1,h);
+  }
+  if(d.loop){g.fillStyle=d.c+"40";const a=c+(d.loop.s-p)/S*W;g.fillRect(a,0,(d.loop.e-d.loop.s)/S*W,H)}
+  g.font="bold 11px sans-serif";
+  if(d.bpm){
+    const bl=60/d.bpm,b0=d.beat0||0;
+    for(let n=Math.max(0,Math.ceil((tL-b0)/bl));b0+n*bl<=tR;n++){
+      const x=Math.round(c+(b0+n*bl-p)/S*W),bar=n%4===0;
+      g.fillStyle=bar?"#ffffffcc":"#ffffff55";g.fillRect(x,bar?0:H-14,1,bar?H:14);
+      if(bar){g.fillStyle="#fff";g.fillText(n/4+1,x+3,11)}
+    }
+  }
+  d.hc.forEach((t,i)=>{if(t==null)return;const x=c+(t-p)/S*W;if(x<0||x>W)return;g.fillStyle="#ffd84a";g.fillRect(x-1,0,2,H);g.fillText(LET[i],x+3,H-4)});
+  g.fillStyle="#fff";g.fillRect(c-1,0,2,H);
+}
+
 /* ---------- animation loop ---------- */
 const fmt=t=>Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0");
 let prev=performance.now();
@@ -346,6 +393,8 @@ function frame(now){
       if(d.loop){g.fillStyle=d.c+"66";g.fillRect(d.loop.s/dur*W,0,(d.loop.e-d.loop.s)/dur*W,H)}
       g.font="bold 12px sans-serif";
       d.hc.forEach((t,i)=>{if(t==null)return;const hx=t/dur*W;g.fillStyle="#fff";g.fillRect(hx-1,0,2,H);g.fillText(LET[i],hx+4,12)});
+      drawBars(d,g,W,H);drawZoom(d,p);
+      if(d.bpm){const bx=(p-(d.beat0||0))*d.bpm/60,txt=bx<0?"-":(Math.floor(bx/4)+1)+"."+(Math.floor(bx)%4+1);if(txt!==d.bartxt){d.bartxt=txt;q(".barlcd").textContent=txt}}
       const a=new Uint8Array(d.an.fftSize);d.an.getByteTimeDomainData(a);let m=0;for(const v of a)m=Math.max(m,Math.abs(v-128));
       q(".vu i").style.height=Math.min(100,m/128*140)+"%";
     }

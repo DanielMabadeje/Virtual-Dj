@@ -158,3 +158,12 @@ button{touch-action:manipulation}
   body{display:flex;flex-direction:column}
   .bay{order:3}
 }
+
+/* scrolling waveform */
+.zwrap{position:relative;margin-bottom:6px}
+canvas.zoom{width:100%;height:64px;background:#0d0e11;border-radius:6px;display:block}
+.zb{position:absolute;right:4px;top:4px;display:flex;gap:3px}
+.zb button{padding:0 7px;min-width:0;line-height:18px;background:#0008}
+.gridrow .quant.on{background:var(--c);color:#111;border-color:var(--c)}
+.barlcd{min-width:44px;font-size:13px;padding:1px 6px}
+@media (orientation:landscape) and (max-height:540px){canvas.zoom{height:44px}.zwrap{margin-bottom:4px}}
