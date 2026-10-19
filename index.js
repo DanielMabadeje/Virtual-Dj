@@ -425,29 +425,123 @@ $("#spprev").onclick=()=>spPlayer&&spPlayer.previousTrack();
 $("#spnext").onclick=()=>spPlayer&&spPlayer.nextTrack();
 $("#spvol").oninput=e=>{spVol=spLevel=+e.target.value;if(spPlayer)spPlayer.setVolume(spVol)};
 
-/* Spotify cannot pass through the mixer (its audio is protected), so the handoff fades the decks out
-   and Spotify in with two separate volume controls. */
-function spFade(toSp){
-  init();
-  if(!spPlayer||!spDev){spmsg("Connect Spotify and wait for the player first.");return}
-  if(toSp&&!spHas){spmsg("Play a Spotify track first, then fade to it.");return}
-  clearInterval(fadeT);spPlayer.activateElement();
-  const sec=Math.max(1,Math.min(30,+$("#spsec").value||8)),t0=performance.now();
-  const k0=fadeG.gain.value,kT=toSp?0:1;
-  if(toSp&&spPaused){spLevel=0;spPlayer.setVolume(0);spPlayer.resume()}
-  const s0=spLevel,sT=toSp?spVol:0;
+/* ---------- other sources: YouTube, Apple Music ---------- */
+let ytp=null,ytReady=false,ytHas=false,mk=null,amHas=false,amScript=false,curTab="spotify";
+const setAmVol=v=>{try{mk.volume=v}catch(e){}try{mk.player.volume=v}catch(e){}};
+
+/* Every source is a separate player (its audio cannot go through the mixer), so each exposes the same
+   few controls and the handoff fade treats them alike. */
+const SRC={
+  spotify:{name:"Spotify",ok:()=>!!(spPlayer&&spDev),has:()=>spHas,paused:()=>spPaused,
+    get vol(){return spVol},get lvl(){return spLevel},set lvl(v){spLevel=v},
+    set:v=>spPlayer.setVolume(v),resume:()=>spPlayer.resume(),pause:()=>spPlayer.pause()},
+  youtube:{name:"YouTube",vol:.8,lvl:.8,ok:()=>ytReady,has:()=>ytHas,paused:()=>![1,3].includes(ytp.getPlayerState()),
+    set:v=>ytp.setVolume(v*100),resume:()=>ytp.playVideo(),pause:()=>ytp.pauseVideo()},
+  apple:{name:"Apple Music",vol:.8,lvl:.8,ok:()=>!!mk,has:()=>amHas,paused:()=>!mk.isPlaying,
+    set:setAmVol,resume:()=>mk.play(),pause:()=>mk.pause()}
+};
+
+/* YouTube: the official IFrame player. YouTube Music links share the same video ids. */
+function ytMake(then){
+  const go=()=>{
+    $("#ytplayer").textContent="";
+    ytp=new YT.Player("ytplayer",{width:"100%",height:"220",playerVars:{playsinline:1,rel:0},events:{
+      onReady:()=>{ytReady=true;ytp.setVolume(SRC.youtube.vol*100);if(then)then()},
+      onStateChange:e=>{if(e.data===1){ytHas=true;$("#ytnow").textContent=ytp.getVideoData().title||"Playing"}$("#yttog").textContent=e.data===1?"Pause":"Play"},
+      onError:e=>spmsg(e.data===101||e.data===150?"The owner of that video does not allow embedded playback.":"YouTube could not play that ("+e.data+").")}});
+  };
+  if(window.YT&&YT.Player)return go();
+  window.onYouTubeIframeAPIReady=go;
+  const s=document.createElement("script");s.src="https://www.youtube.com/iframe_api";
+  s.onerror=()=>spmsg("Could not load the YouTube player.");document.head.append(s);
+}
+$("#ytgo").onclick=()=>{
+  let id=null,list=null;
+  try{
+    const x=new URL($("#ytlink").value.trim());
+    id=x.searchParams.get("v")||(x.hostname==="youtu.be"?x.pathname.slice(1):null)||(x.pathname.match(/\/(?:embed|shorts)\/([\w-]{11})/)||[])[1]||null;
+    list=x.searchParams.get("list");
+  }catch(e){}
+  if(!id&&!list){spmsg("That does not look like a YouTube or YouTube Music link.");return}
+  spmsg("");
+  const go=()=>id?ytp.loadVideoById(id):ytp.loadPlaylist({list,listType:"playlist"});
+  if(ytp&&ytReady)go();else if(!ytp)ytMake(go);else spmsg("The player is still starting. Try again in a moment.");
+};
+$("#yttog").onclick=()=>{if(ytReady)ytp.getPlayerState()===1?ytp.pauseVideo():ytp.playVideo()};
+$("#ytprev").onclick=()=>ytReady&&ytp.previousVideo();
+$("#ytnext").onclick=()=>ytReady&&ytp.nextVideo();
+
+/* Apple Music: MusicKit JS. The developer token is made outside the browser (tools/apple-token.js). */
+function amPrep(){
+  if(amScript||window.MusicKit)return;amScript=true;
+  const s=document.createElement("script");s.src="https://js-cdn.music.apple.com/musickit/v1/musickit.js";
+  s.onerror=()=>{amScript=false;spmsg("Could not load the Apple Music player.")};document.head.append(s);
+}
+$("#amtok").value=localStorage.getItem("am_tok")||"";
+$("#amconn").onclick=async()=>{
+  const tok=$("#amtok").value.trim();
+  if(!tok){spmsg("Paste your Apple Music developer token first.");return}
+  if(!window.MusicKit){amPrep();spmsg("Loading the Apple Music player. Press Connect again in a moment.");return}
+  try{
+    await MusicKit.configure({developerToken:tok,app:{name:"Virtual DJ",build:"1.0"}});
+    mk=MusicKit.getInstance();await mk.authorize();localStorage.setItem("am_tok",tok);setAmVol(SRC.apple.vol);
+    mk.addEventListener("mediaItemDidChange",()=>{const it=mk.nowPlayingItem;if(it){amHas=true;$("#amnow").textContent=it.title+" - "+(it.artistName||"")}});
+    mk.addEventListener("playbackStateDidChange",()=>{$("#amtog").textContent=mk.isPlaying?"Pause":"Play"});
+    $("#amsetup").hidden=true;$("#amon").hidden=false;spmsg("Apple Music ready.");
+  }catch(e){mk=null;spmsg("Apple Music sign in failed. Check the token, and that your account has a subscription.")}
+};
+$("#amgo").onclick=async()=>{
+  if(!mk)return;let u;
+  try{u=new URL($("#amlink").value.trim())}catch(e){spmsg("Paste an Apple Music link.");return}
+  const i=u.searchParams.get("i"),seg=u.pathname.split("/").filter(Boolean),last=seg[seg.length-1];
+  const q=i?{song:i}:seg.includes("song")?{song:last}:seg.includes("album")?{album:last}:seg.includes("playlist")?{playlist:last}:null;
+  if(!q){spmsg("That does not look like an Apple Music song, album or playlist link.");return}
+  try{await mk.setQueue(q);await mk.play();spmsg("")}catch(e){spmsg("Apple Music could not play that.")}
+};
+$("#amtog").onclick=()=>{if(mk)mk.isPlaying?mk.pause():mk.play()};
+$("#amprev").onclick=()=>mk&&mk.skipToPreviousItem();
+$("#amnext").onclick=()=>mk&&mk.skipToNextItem();
+$("#amoff").onclick=()=>{localStorage.removeItem("am_tok");location.reload()};
+["youtube","apple"].forEach(k=>{
+  const id=k==="youtube"?"#ytvol":"#amvol";
+  $(id).oninput=e=>{const S=SRC[k];S.vol=S.lvl=+e.target.value;if(S.ok())S.set(S.vol)};
+});
+
+/* tabs */
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
+  curTab=b.dataset.s;
+  document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".pane").forEach(p=>{p.hidden=p.id!=="pane-"+curTab});
+  const S=SRC[curTab];$("#fadebar").hidden=!S;if(S)$("#srcto").textContent="Fade to "+S.name;
+  if(curTab==="apple")amPrep();
+});
+
+/* handoff: fade the decks out and the chosen source in (or back), and quiet any other source */
+function srcFade(toSrc){
+  init();const S=SRC[curTab];if(!S)return;
+  if(!S.ok()){spmsg(S.name+" is not ready yet. Connect it and start a track first.");return}
+  if(toSrc&&!S.has()){spmsg("Start a track on "+S.name+" first, then fade to it.");return}
+  clearInterval(fadeT);
+  const sec=Math.max(1,Math.min(30,+$("#spsec").value||8)),t0=performance.now(),k0=fadeG.gain.value,kT=toSrc?0:1;
+  const others=toSrc?Object.values(SRC).filter(o=>o!==S&&o.ok()&&!o.paused()).map(o=>({o,s0:o.lvl})):[];
+  if(toSrc&&S.paused()){S.lvl=0;S.set(0);S.resume()}
+  const s0=S.lvl,sT=toSrc?S.vol:0;
   fadeT=setInterval(()=>{
     const p=Math.min(1,(performance.now()-t0)/(sec*1000));
     fadeG.gain.linearRampToValueAtTime(k0+(kT-k0)*p,ctx.currentTime+.1);
-    spLevel=s0+(sT-s0)*p;spPlayer.setVolume(spLevel);
+    S.lvl=s0+(sT-s0)*p;S.set(S.lvl);
+    others.forEach(x=>{x.o.lvl=x.s0*(1-p);x.o.set(x.o.lvl)});
     if(p>=1){
       clearInterval(fadeT);
-      if(toSp){decks.forEach(d=>{if(d.playing)stop(d)});spmsg("Spotify is playing. The decks are muted until you fade back.")}
-      else{spPlayer.pause().then(()=>{spLevel=spVol;spPlayer.setVolume(spVol)});spmsg("Back on the decks.")}
+      const rest=o=>Promise.resolve(o.pause()).then(()=>{o.lvl=o.vol;o.set(o.vol)});
+      others.forEach(x=>rest(x.o));
+      if(toSrc){decks.forEach(d=>{if(d.playing)stop(d)});spmsg(S.name+" is playing. The decks are muted until you fade back.")}
+      else{rest(S);spmsg("Back on the decks.")}
     }
   },80);
 }
-$("#spto").onclick=()=>spFade(true);$("#spback").onclick=()=>spFade(false);
+$("#srcto").onclick=()=>srcFade(true);$("#srcback").onclick=()=>srcFade(false);
+
 (async()=>{
   const q=new URLSearchParams(location.search);
   if(q.get("error")){spmsg("Spotify said: "+q.get("error"));history.replaceState({},"",location.pathname)}
