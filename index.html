@@ -9,6 +9,7 @@
 <body class="dec2">
 <div class="top">
   <h1>Virtual DJ</h1>
+  <button id="rec" title="Record the mix to a file">Record</button><span class="lcd" id="rect">0:00</span>
   <div class="seg" role="group" aria-label="Number of decks"><button id="m2" class="on">2 decks</button><button id="m4">4 decks</button></div>
 </div>
 
@@ -16,7 +17,10 @@
   <div class="box" id="drop">
     <h2>Library</h2>
     <div class="row" style="margin-bottom:8px"><input type="file" id="file" accept="audio/*" multiple hidden><button id="pick">Add tracks</button><span style="color:var(--dim);align-self:center">or drop audio files anywhere</span></div>
+    <div class="row" style="margin-bottom:8px"><input type="text" id="libq" placeholder="Search tracks" aria-label="Search tracks"><select id="libs" aria-label="Sort tracks"><option value="added">Newest</option><option value="name">Name</option><option value="bpm">BPM</option><option value="key">Key</option></select></div>
     <div id="lib"><div class="drop">No tracks yet. Add files, then load them onto a deck.</div></div>
+    <p class="note" id="libnote">Tracks you add are saved in this browser, along with their BPM, beat grid, key and hot cues.</p>
+    <div id="recs"></div>
   </div>
   <div class="box" id="spbox">
     <h2>Streaming</h2>
@@ -78,6 +82,11 @@
     <h2>Mixer</h2>
     <div class="col"><span>Master</span><input type="range" class="v fd" id="mvol" min="0" max="1" step=".01" value=".85" aria-label="Master volume"></div>
     <div class="xf"><div class="col" style="align-items:stretch"><input type="range" class="fd h" id="cf" min="0" max="1" step=".01" value=".5" aria-label="Crossfader"><span style="display:flex;justify-content:space-between"><b>A</b><span>crossfader</span><b>B</b></span></div></div>
+    <div class="samp">
+      <div class="note" style="margin:0">Sampler (keys 1 to 8). Shift-click a pad to load your own sound, right-click to reset.</div>
+      <div id="pads8"></div><input type="file" id="sfile" accept="audio/*" hidden>
+      <div class="knobs" style="grid-template-columns:1fr"><label>Sampler level<input type="range" class="kn" id="svol" min="0" max="1" step=".01" value=".8"></label></div>
+    </div>
     <div class="hp">
       <button id="hppick">Pick headphones</button>
       <select id="hpsel" aria-label="Headphone output"><option value="">No output</option></select>
