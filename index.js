@@ -1,6 +1,6 @@
 const $=(s,e=document)=>e.querySelector(s);
 const COL=["#ffb02e","#3cd6c8","#ff5d73","#9b8cff"];
-let ctx,fadeG,cueBus,hpMaster,hpOut,hpAudio,master,echoIn,revIn,delay,cf=.5,lib=[];
+let ctx,fadeG,cueBus,hpMaster,hpOut,hpAudio,master,irBuf,cf=.5,lib=[];
 const decks=[];
 
 /* ---------- build deck UI ---------- */
@@ -28,9 +28,11 @@ COL.forEach((c,i)=>{
     </svg>
     <div class="col"><div style="display:flex;gap:6px"><input type="range" class="v fd vol" min="0" max="1" step=".01" value=".8" aria-label="Volume ${n}"><div class="vu"><i></i></div></div><span>level</span></div>
   </div>
-  <div class="btns"><button class="play">Play</button><button class="cue">Cue</button><button class="sync">Sync</button><button class="brake">Brake</button><button class="echo">Echo</button><button class="rev">Reverb</button><button class="pfl" title="Hear this deck in your headphones">Phones</button></div>
+  <div class="btns"><button class="play">Play</button><button class="cue">Cue</button><button class="sync">Sync</button><button class="brake">Brake</button><button class="pfl" title="Hear this deck in your headphones">Phones</button></div>
   <div class="pads">${"ABCD".split("").map((l,k)=>`<button class="hc" title="Click to set or jump. Right-click or shift-click to clear.">${l}</button>`).join("")}</div>
   <div class="loops"><span>Loop (beats)</span><button class="lh" title="Halve">&frac12;</button>${[1,2,4,8].map(b=>`<button class="lp" data-b="${b}">${b}</button>`).join("")}<button class="ld" title="Double">&times;2</button></div>
+  <div class="perf"><span>Jump</span><button class="jb" title="Jump back">&laquo;</button><select class="jn" aria-label="Jump size"><option>1</option><option>2</option><option selected>4</option><option>8</option><option>16</option><option>32</option></select><button class="jf" title="Jump forward">&raquo;</button><span style="margin-left:10px">Roll (hold)</span><button class="rl" data-b=".125">1/8</button><button class="rl" data-b=".25">1/4</button><button class="rl" data-b=".5">1/2</button><button class="rl" data-b="1">1</button></div>
+  <div class="fxrow"><button class="fxon" title="Switch the effect on or off">FX</button><select class="fxs" aria-label="Effect"><option value="echo">Echo</option><option value="reverb">Reverb</option><option value="flanger">Flanger</option><option value="phaser">Phaser</option><option value="crush">Crusher</option><option value="gate">Gater</option></select><label>Wet / dry<input type="range" class="kn fxw" min="0" max="1" step=".01" value=".5"></label></div>
   <div class="knobs">
     <label>Low<input type="range" class="kn eql" min="-1" max="1" step=".01" value="0"></label>
     <label>Mid<input type="range" class="kn eqm" min="-1" max="1" step=".01" value="0"></label>
@@ -69,12 +71,8 @@ function init(){
   if(ctx){ctx.resume();return}
   ctx=new AudioContext();master=ctx.createGain();master.gain.value=+$("#mvol").value;
   const comp=ctx.createDynamicsCompressor();fadeG=ctx.createGain();master.connect(fadeG);fadeG.connect(comp);comp.connect(ctx.destination);
-  echoIn=ctx.createGain();delay=ctx.createDelay(2);delay.delayTime.value=.375;
-  const fb=ctx.createGain(),lp=ctx.createBiquadFilter();fb.gain.value=.5;lp.frequency.value=3000;
-  echoIn.connect(delay);delay.connect(lp);lp.connect(fb);fb.connect(delay);lp.connect(master);
-  revIn=ctx.createGain();const cv=ctx.createConvolver(),N=ctx.sampleRate*2.4,ir=ctx.createBuffer(2,N,ctx.sampleRate);
-  for(let c=0;c<2;c++){const a=ir.getChannelData(c);for(let i=0;i<N;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/N,3)}
-  cv.buffer=ir;const rg=ctx.createGain();rg.gain.value=.8;revIn.connect(cv);cv.connect(rg);rg.connect(master);
+  {const N=ctx.sampleRate*2.4;irBuf=ctx.createBuffer(2,N,ctx.sampleRate);
+   for(let c=0;c<2;c++){const a=irBuf.getChannelData(c);for(let k=0;k<N;k++)a[k]=(Math.random()*2-1)*Math.pow(1-k/N,3)}}
   cueBus=ctx.createGain();hpMaster=ctx.createGain();hpOut=ctx.createGain();
   const cueDest=ctx.createMediaStreamDestination();
   cueBus.connect(hpOut);master.connect(hpMaster);hpMaster.connect(hpOut);hpOut.connect(cueDest);
@@ -83,11 +81,9 @@ function init(){
     const f=(t,fr)=>{const b=ctx.createBiquadFilter();b.type=t;b.frequency.value=fr;return b};
     d.low=f("lowshelf",250);d.mid=f("peaking",1200);d.high=f("highshelf",4000);d.flt=f("allpass",1000);d.flt.Q.value=2;
     d.vol=ctx.createGain();d.x=ctx.createGain();d.an=ctx.createAnalyser();d.an.fftSize=256;
-    d.sE=ctx.createGain();d.sR=ctx.createGain();d.sE.gain.value=d.sR.gain.value=0;
-    d.low.connect(d.mid);d.mid.connect(d.high);d.high.connect(d.flt);d.flt.connect(d.vol);d.vol.connect(d.x);d.x.connect(d.an);d.x.connect(master);
-    d.vol.connect(d.sE);d.sE.connect(echoIn);d.vol.connect(d.sR);d.sR.connect(revIn);
-    d.pfl=ctx.createGain();d.pfl.gain.value=$d(d,".pfl").classList.contains("on")?1:0;d.flt.connect(d.pfl);d.pfl.connect(cueBus);
-    applyAll(d);
+    d.low.connect(d.mid);d.mid.connect(d.high);d.high.connect(d.flt);d.fxIn=ctx.createGain();d.fxDry=ctx.createGain();d.fxWet=ctx.createGain();d.fxOut=ctx.createGain();d.flt.connect(d.fxIn);d.fxIn.connect(d.fxDry);d.fxDry.connect(d.fxOut);d.fxWet.connect(d.fxOut);d.fxOut.connect(d.vol);d.vol.connect(d.x);d.x.connect(d.an);d.x.connect(master);
+    d.pfl=ctx.createGain();d.pfl.gain.value=$d(d,".pfl").classList.contains("on")?1:0;d.fxOut.connect(d.pfl);d.pfl.connect(cueBus);
+    applyAll(d);fxApply(d);
   });
 }
 const eqdb=v=>v<0?v*40:v*6;
@@ -177,6 +173,69 @@ addEventListener("dragover",e=>{e.preventDefault();$("#drop").classList.add("hot
 addEventListener("dragleave",()=>$("#drop").classList.remove("hot"));
 addEventListener("drop",e=>{e.preventDefault();$("#drop").classList.remove("hot");addFiles(e.dataTransfer.files)});
 
+/* ---------- effects: one unit per deck, with a wet/dry knob ---------- */
+function buildFx(d,type){
+  const nodes=[],osc=[],mk=n=>{nodes.push(n);return n},C=ctx;
+  const inn=mk(C.createGain()),out=mk(C.createGain());
+  const lfo=(freq,depth,param)=>{const o=C.createOscillator(),g=mk(C.createGain());o.frequency.value=freq;g.gain.value=depth;o.connect(g);g.connect(param);o.start();osc.push(o);return o};
+  const beat=()=>d.bpm?60/(d.bpm*d.rate):.4;
+  let upd=null,mix="eq";
+  if(type==="echo"){
+    mix="add";const del=mk(C.createDelay(2)),fb=mk(C.createGain()),lp=mk(C.createBiquadFilter());
+    fb.gain.value=.5;lp.frequency.value=3000;del.delayTime.value=Math.min(1.9,beat()*.75);
+    inn.connect(del);del.connect(lp);lp.connect(fb);fb.connect(del);lp.connect(out);
+    upd=()=>del.delayTime.setTargetAtTime(Math.min(1.9,Math.max(.05,beat()*.75)),C.currentTime,.05);
+  }else if(type==="reverb"){
+    mix="add";const cv=mk(C.createConvolver());cv.buffer=irBuf;inn.connect(cv);cv.connect(out);
+  }else if(type==="flanger"){
+    const del=mk(C.createDelay(.05)),fb=mk(C.createGain());del.delayTime.value=.003;fb.gain.value=.55;
+    inn.connect(del);del.connect(fb);fb.connect(del);del.connect(out);lfo(.25,.002,del.delayTime);
+  }else if(type==="phaser"){
+    let prev=inn;
+    for(let k=0;k<4;k++){const ap=mk(C.createBiquadFilter());ap.type="allpass";ap.frequency.value=700+k*350;ap.Q.value=2;prev.connect(ap);prev=ap;lfo(.3,500,ap.frequency)}
+    prev.connect(out);
+  }else if(type==="crush"){
+    const ws=mk(C.createWaveShaper()),cu=new Float32Array(4096),st=7;
+    for(let k=0;k<4096;k++)cu[k]=Math.round((k/2047.5-1)*st)/st;ws.curve=cu;inn.connect(ws);ws.connect(out);
+  }else if(type==="gate"){
+    const g=mk(C.createGain()),sh=mk(C.createWaveShaper()),lp=mk(C.createBiquadFilter()),o=C.createOscillator();
+    g.gain.value=0;sh.curve=new Float32Array([0,1]);lp.frequency.value=250;o.type="square";o.frequency.value=4;
+    o.connect(sh);sh.connect(lp);lp.connect(g.gain);o.start();osc.push(o);inn.connect(g);g.connect(out);
+    upd=()=>o.frequency.setTargetAtTime(d.bpm?d.bpm*d.rate/30:4,C.currentTime,.05);
+  }
+  return{in:inn,out,upd,mix,stop(){osc.forEach(o=>{try{o.stop()}catch(e){}});nodes.forEach(n=>n.disconnect())}};
+}
+function fxApply(d){
+  if(!ctx)return;
+  const on=$d(d,".fxon").classList.contains("on"),type=$d(d,".fxs").value,w=+$d(d,".fxw").value;
+  if(d.fx&&(!on||d.fxType!==type)){d.fxIn.disconnect(d.fx.in);d.fx.stop();d.fx=null}
+  if(on&&!d.fx){d.fx=buildFx(d,type);d.fxType=type;d.fxIn.connect(d.fx.in);d.fx.out.connect(d.fxWet)}
+  if(!on){d.fxDry.gain.value=1;d.fxWet.gain.value=0;return}
+  const add=d.fx.mix==="add";
+  d.fxDry.gain.value=add?1:Math.cos(w*Math.PI/2);d.fxWet.gain.value=add?w:Math.sin(w*Math.PI/2);
+}
+
+/* ---------- beat jump and loop roll ---------- */
+function beatJump(d,beats){
+  if(!d.buf||!d.bpm)return;init();
+  const dl=beats*60/d.bpm,dur=d.buf.duration,t=pos(d)+dl;
+  if(t<0||t>=dur-.05)return;
+  if(d.loop){const s=d.loop.s+dl,e=d.loop.e+dl;if(s>=0&&e<=dur)d.loop={...d.loop,s,e}}
+  seek(d,t);
+}
+function rollOn(d,frac){
+  if(!d.buf||!d.bpm||!d.playing||d.loop)return;init();
+  const len=frac*60/d.bpm,p=pos(d),b0=d.beat0||0,s=d.quant?Math.max(0,b0+Math.floor((p-b0)/len)*len):p;
+  d.slip={p,t:ctx.currentTime,r:d.rate};d.loop={s,e:s+len,beats:frac,roll:true};
+  d.src.loopStart=s;d.src.loopEnd=s+len;d.src.loop=true;loopUI(d);
+}
+function rollOff(d){
+  const sl=d.slip;d.slip=null;
+  if(!sl||!d.loop||!d.loop.roll)return;
+  const target=sl.p+(ctx.currentTime-sl.t)*sl.r;d.loop=null;loopUI(d);
+  if(d.playing)seek(d,Math.min(target,d.buf.duration-.05));
+}
+
 /* ---------- bpm, beat grid, headphones ---------- */
 function setBpm(d,v){d.bpm=v;$d(d,".bpm").value=v?v.toFixed(1):"--.-";if(d.loop&&ctx)loopOff(d)}
 const snap=(d,t)=>{if(!d.quant||!d.bpm)return t;const bl=60/d.bpm,b0=d.beat0||0;return Math.max(0,b0+Math.round((t-b0)/bl)*bl)};
@@ -245,10 +304,6 @@ decks.forEach(d=>{
   q(".eqh").oninput=e=>{init();d.high.gain.value=eqdb(+e.target.value)};
   q(".flt").oninput=()=>{init();setFilter(d)};
   q(".asg").onchange=()=>{init();applyX(d)};
-  const fx=(btn,send)=>{q(btn).onclick=e=>{init();const on=e.currentTarget.classList.toggle("on");
-    if(send==="sE"&&on&&d.bpm)delay.delayTime.value=Math.min(1.5,Math.max(.1,60/(d.bpm*d.rate)*.75));
-    d[send].gain.value=on?.6:0}};
-  fx(".echo","sE");fx(".rev","sR");
   q(".sync").onclick=()=>{
     init();
     const o=decks.filter(x=>x!==d&&x.buf&&x.bpm&&!(document.body.classList.contains("dec2")&&x.n>2)).sort((a,b)=>b.playing-a.playing)[0];
@@ -283,6 +338,21 @@ decks.forEach(d=>{
   q(".bh").onclick=()=>{if(d.bpm&&d.bpm/2>=40)setBpm(d,d.bpm/2)};
   q(".bd").onclick=()=>{if(d.bpm&&d.bpm*2<=250)setBpm(d,d.bpm*2)};
   q(".grid").onclick=()=>{init();if(d.buf)d.beat0=pos(d)};
+  q(".jb").onclick=()=>beatJump(d,-q(".jn").value);q(".jf").onclick=()=>beatJump(d,+q(".jn").value);
+  d.el.querySelectorAll(".rl").forEach(b=>{
+    b.onpointerdown=e=>{b.setPointerCapture(e.pointerId);rollOn(d,+b.dataset.b)};
+    b.onpointerup=b.onpointercancel=()=>rollOff(d);
+  });
+  q(".fxon").onclick=e=>{init();e.currentTarget.classList.toggle("on");fxApply(d)};
+  q(".fxs").onchange=()=>{init();fxApply(d)};q(".fxw").oninput=()=>{init();fxApply(d)};
+  /* drag the scrolling waveform to scrub or scratch */
+  const zc=q(".zoom");let zon=false,zx=0,zt=0,zwas=false;
+  zc.onpointerdown=e=>{init();if(!d.buf)return;zc.setPointerCapture(e.pointerId);zon=true;d.scr=true;zwas=d.playing;if(zwas)stop(d);zx=e.clientX;zt=performance.now();d.v=0};
+  zc.onpointermove=e=>{
+    if(!zon)return;const now=performance.now(),dp=-(e.clientX-zx)/zc.getBoundingClientRect().width*d.zs,dt=Math.max(.004,(now-zt)/1000);
+    d.off=Math.max(0,Math.min(d.buf.duration-.05,d.off+dp));d.ang+=dp/1.8*360;d.v=d.v*.5+(dp/dt)*.5;d.moved=true;zx=e.clientX;zt=now;
+  };
+  zc.onpointerup=zc.onpointercancel=()=>{if(!zon)return;zon=false;d.scr=false;d.v=0;if(zwas)play(d)};
   q(".gl").onclick=e=>{d.beat0=(d.beat0||0)-(e.shiftKey?.002:.01)};
   q(".gr").onclick=e=>{d.beat0=(d.beat0||0)+(e.shiftKey?.002:.01)};
   q(".quant").onclick=e=>{d.quant=e.currentTarget.classList.toggle("on")};
@@ -377,6 +447,7 @@ function frame(now){
   const dt=(now-prev)/1000;prev=now;
   decks.forEach(d=>{
     const q=s=>$d(d,s);
+    if(ctx&&d.fx&&d.fx.upd)d.fx.upd();
     if(ctx&&d.braking&&d.playing){const r=d.rate*.94;if(r<.05){stop(d);d.rate=1+ +q(".pitch").value/100;d.braking=false}else setRate(d,r)}
     if(d.buf&&ctx){
       const p=pos(d);
