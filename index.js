@@ -1,4 +1,8 @@
 const $=(s,e=document)=>e.querySelector(s);
+/* Streaming switches. Spotify stays off: its Developer Policy forbids mixing, overlapping or segueing Spotify
+   audio with other audio, and forbids apps that combine Spotify with other services. Turn it on only after
+   Spotify confirms in writing that this design is allowed. */
+const FEATURES={spotify:false};
 const COL=["#ffb02e","#3cd6c8","#ff5d73","#9b8cff"];
 let ctx,fadeG,cueBus,hpMaster,hpOut,hpAudio,master,irBuf,sBus,recDest,cf=.5,lib=[];
 const decks=[];
@@ -690,7 +694,7 @@ const spmsg=t=>{$("#spmsg").textContent=t};
 let spPlayer=null,spDev=null,spVol=.8,spLevel=.8,spPaused=true,spHas=false,fadeT=null;
 $("#spred").textContent=redirectUri;
 $("#spcid").value=localStorage.getItem("sp_cid")||"";
-if(!/^(127\.0\.0\.1|\[::1\])$/.test(location.hostname)&&location.protocol!=="https:")
+if(FEATURES.spotify&&!/^(127\.0\.0\.1|\[::1\])$/.test(location.hostname)&&location.protocol!=="https:")
   spmsg("Spotify only accepts https or 127.0.0.1 here. Open this page at http://127.0.0.1:3000 (npm start).");
 const b64=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 
@@ -835,41 +839,23 @@ $("#amoff").onclick=()=>{localStorage.removeItem("am_tok");location.reload()};
 });
 
 /* tabs */
+if(!FEATURES.spotify){
+  document.querySelector('#tabs [data-s="spotify"]').hidden=true;$("#pane-spotify").hidden=true;
+  ["sp_tok","sp_ver","sp_cid"].forEach(k=>localStorage.removeItem(k));   // forget any earlier Spotify sign-in
+}
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
-  curTab=b.dataset.s;
+  const prevTab=curTab;curTab=b.dataset.s;
+  if(prevTab==="youtube"&&curTab!=="youtube"&&ytReady)ytp.pauseVideo();   // no playing out of sight
   document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x===b));
   document.querySelectorAll(".pane").forEach(p=>{p.hidden=p.id!=="pane-"+curTab});
-  const S=SRC[curTab];$("#fadebar").hidden=!S;if(S)$("#srcto").textContent="Fade to "+S.name;
   if(curTab==="apple")amPrep();
 });
 
-/* handoff: fade the decks out and the chosen source in (or back), and quiet any other source */
-function srcFade(toSrc){
-  init();const S=SRC[curTab];if(!S)return;
-  if(!S.ok()){spmsg(S.name+" is not ready yet. Connect it and start a track first.");return}
-  if(toSrc&&!S.has()){spmsg("Start a track on "+S.name+" first, then fade to it.");return}
-  clearInterval(fadeT);
-  const sec=Math.max(1,Math.min(30,+$("#spsec").value||8)),t0=performance.now(),k0=fadeG.gain.value,kT=toSrc?0:1;
-  const others=toSrc?Object.values(SRC).filter(o=>o!==S&&o.ok()&&!o.paused()).map(o=>({o,s0:o.lvl})):[];
-  if(toSrc&&S.paused()){S.lvl=0;S.set(0);S.resume()}
-  const s0=S.lvl,sT=toSrc?S.vol:0;
-  fadeT=setInterval(()=>{
-    const p=Math.min(1,(performance.now()-t0)/(sec*1000));
-    fadeG.gain.linearRampToValueAtTime(k0+(kT-k0)*p,ctx.currentTime+.1);
-    S.lvl=s0+(sT-s0)*p;S.set(S.lvl);
-    others.forEach(x=>{x.o.lvl=x.s0*(1-p);x.o.set(x.o.lvl)});
-    if(p>=1){
-      clearInterval(fadeT);
-      const rest=o=>Promise.resolve(o.pause()).then(()=>{o.lvl=o.vol;o.set(o.vol)});
-      others.forEach(x=>rest(x.o));
-      if(toSrc){decks.forEach(d=>{if(d.playing)stop(d)});spmsg(S.name+" is playing. The decks are muted until you fade back.")}
-      else{rest(S);spmsg("Back on the decks.")}
-    }
-  },80);
-}
-$("#srcto").onclick=()=>srcFade(true);$("#srcback").onclick=()=>srcFade(false);
 
+
+if(!FEATURES.spotify)document.querySelector('#tabs [data-s="youtube"]').click();
 (async()=>{
+  if(!FEATURES.spotify){history.replaceState({},"",location.pathname);return}
   const q=new URLSearchParams(location.search);
   if(q.get("error")){spmsg("Spotify said: "+q.get("error"));history.replaceState({},"",location.pathname)}
   else if(q.get("code")){

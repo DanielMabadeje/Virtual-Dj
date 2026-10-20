@@ -48,13 +48,13 @@
       <div class="spnow" id="ytnow">Nothing playing</div>
       <div class="row"><button id="ytprev">Prev</button><button id="yttog">Play</button><button id="ytnext">Next</button></div>
       <input type="range" class="fd h" id="ytvol" min="0" max="1" step=".01" value=".8" aria-label="YouTube volume">
-      <p class="note">No account needed. YouTube requires its player to stay visible, and some videos block embedding.</p>
+      <p class="note">No account needed. This plays in YouTube's own player, so it stays on screen and pauses when you leave this tab. It is not mixed with the decks, and it is not part of recordings. Some videos block embedding.</p>
     </div>
 
     <div class="pane" id="pane-apple" hidden>
       <div id="amsetup">
         <div class="row"><input type="text" id="amtok" placeholder="Apple Music developer token" aria-label="Apple Music developer token"><button id="amconn">Connect</button></div>
-        <p class="note">Needs an Apple Music subscription and an Apple Developer Program membership. Make the token with <code>node tools/apple-token.js</code> (see the top of that file), then paste it here.</p>
+        <p class="note">Needs an Apple Music subscription and an Apple Developer Program membership. Make the token with <code>node tools/apple-token.js</code> (see the top of that file), then paste it here. Playback starts only when you press Play, and it runs separately from the decks.</p>
       </div>
       <div id="amon" hidden>
         <div class="row"><input type="text" id="amlink" placeholder="Paste an Apple Music song, album or playlist link"><button id="amgo">Play</button></div>
@@ -69,10 +69,6 @@
       <p class="note">What does work: if an artist allows downloads on Audiomack, download the file and add it to your library. It then behaves like any local track, with scratching, loops and effects.</p>
     </div>
 
-    <div class="row" id="fadebar" style="align-items:center;margin-top:10px">
-      <button id="srcto">Fade to Spotify</button><button id="srcback">Fade to decks</button>
-      <label class="note">over <input type="number" id="spsec" min="1" max="30" value="8" style="width:54px"> s</label>
-    </div>
     <div id="spmsg" class="note"></div>
   </div>
 </div>
